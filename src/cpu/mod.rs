@@ -1,0 +1,76 @@
+mod addressing;
+mod flags;
+
+use crate::{bus::Bus, cpu::addressing::*, cpu::flags::*};
+
+/// Models the core of the MOS 6502.
+pub struct Cpu {
+    /// Accumulator register.
+    a: u8,
+
+    /// X register.
+    x: u8,
+
+    /// Y register.
+    y: u8,
+
+    /// Program counter.
+    pc: u16,
+
+    /// Stack pointer (points to location on bus).
+    sp: u8,
+
+    /// Status register.
+    status: u8,
+
+    /// Number of clock cycles remaining for the current instruction
+    /// that is being executed.
+    cycles: u8,
+}
+
+impl Default for Cpu {
+    fn default() -> Self {
+        Self {
+            a: 0,
+            x: 0,
+            y: 0,
+            pc: 0,
+            sp: 0xFD,
+            status: RESET_STATUS,
+            cycles: 0,
+        }
+    }
+}
+
+impl Cpu {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Forces the CPU into the state it would have after a reset (e.g. when
+    /// the physical reset button of the NES was pressed).
+    ///
+    /// The program counter (`pc`) is loaded from the "reset vector". This lets a
+    /// cartridge tell the CPU where to start executing, since different programs are
+    /// expected to begin at different locations.
+    pub fn reset(&mut self, bus: &Bus) {
+        self.pc = u16::from_le_bytes([bus.peek(0xFFFC), bus.peek(0xFFFD)]);
+        self.sp = self.sp.wrapping_sub(3);
+        self.status = RESET_STATUS;
+        self.cycles = 8;
+    }
+
+    pub fn clock(&mut self, bus: &mut Bus) {
+        if self.cycles == 0 {
+            let opcode = bus.read(self.pc);
+            self.pc += 1;
+            self.cycles = self.execute(opcode, bus);
+        }
+
+        self.cycles -= 1;
+    }
+
+    fn execute(&mut self, opcode: u8, bus: &mut Bus) -> u8 {
+        todo!()
+    }
+}
