@@ -80,50 +80,410 @@ impl Cpu {
     }
 
     fn addr_implied(&mut self) -> Operand {
-        todo!()
+        Operand {
+            address: 0,
+            page_crossed: false,
+        }
     }
 
     fn addr_immediate(&mut self) -> Operand {
-        todo!()
+        let address = self.pc;
+        self.pc = self.pc.wrapping_add(1);
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_zero_page(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let address = bus.read(self.pc) as u16;
+        self.pc = self.pc.wrapping_add(1);
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_zero_page_x(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let base = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+        let address = base.wrapping_add(self.x) as u16;
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_zero_page_y(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let base = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+        let address = base.wrapping_add(self.y) as u16;
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_relative(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let offset = bus.read(self.pc) as i8;
+        self.pc = self.pc.wrapping_add(1);
+
+        // `pc` now points past the branch instruction completely.
+        let base = self.pc;
+        let address = base.wrapping_add(offset as i16 as u16);
+
+        Operand {
+            address,
+            page_crossed: page_crossed(base, address),
+        }
     }
 
     fn addr_absolute(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let address = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
+        self.pc = self.pc.wrapping_add(2);
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_absolute_x(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let base = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
+        self.pc = self.pc.wrapping_add(2);
+        let address = base.wrapping_add(self.x as u16);
+
+        Operand {
+            address,
+            page_crossed: page_crossed(base, address),
+        }
     }
 
     fn addr_absolute_y(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let base = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
+        self.pc = self.pc.wrapping_add(2);
+        let address = base.wrapping_add(self.y as u16);
+
+        Operand {
+            address,
+            page_crossed: page_crossed(base, address),
+        }
     }
 
     fn addr_indirect(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let pointer = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
+        self.pc = self.pc.wrapping_add(2);
+
+        let lo = bus.read(pointer);
+
+        // Hardware bug: if the pointer's low byte is 0xFF, then the high byte
+        // of the real address is NOT read from pointer + 1 (which would
+        // cross the page). Instead, it wraps back to the start of the same page.
+        let hi_addr = if pointer & 0x00FF == 0x00FF {
+            pointer & 0xFF00 // Same page, low byte forced to 0x00
+        } else {
+            pointer.wrapping_add(1)
+        };
+        let hi = bus.read(hi_addr);
+
+        let address = u16::from_le_bytes([lo, hi]);
+
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_indirect_x(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let zp_base = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+
+        let pointer = zp_base.wrapping_add(self.x) as u16;
+        let lo = bus.read(pointer);
+
+        let hi_addr = zp_base.wrapping_add(self.x).wrapping_add(1) as u16;
+        let hi = bus.read(hi_addr);
+
+        let address = u16::from_le_bytes([lo, hi]);
+        Operand {
+            address,
+            page_crossed: false,
+        }
     }
 
     fn addr_indirect_y(&mut self, bus: &mut Bus) -> Operand {
-        todo!()
+        let zp_base = bus.read(self.pc);
+        self.pc = self.pc.wrapping_add(1);
+
+        let lo = bus.read(zp_base as u16);
+        let hi = bus.read(zp_base.wrapping_add(1) as u16);
+        let base = u16::from_le_bytes([lo, hi]);
+
+        let address = base.wrapping_add(self.y as u16);
+        Operand {
+            address,
+            page_crossed: page_crossed(base, address),
+        }
+    }
+}
+
+#[inline]
+fn page_crossed(base: u16, address: u16) -> bool {
+    (address & 0xFF00) != (base & 0xFF00)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::bus::Bus;
+
+    #[test]
+    fn implied_returns_placeholder_without_advancing_pc() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        let operand = cpu.addr_implied();
+        assert_eq!(cpu.pc, 0x1000);
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn immediate_reads_next_byte_address_and_advances_pc() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        let operand = cpu.addr_immediate();
+        assert_eq!(operand.address, 0x1000);
+        assert_eq!(cpu.pc, 0x1001);
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn zero_page_reads_low_byte_and_advances_pc() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        bus.write(0x1000, 0x42);
+
+        let operand = cpu.addr_zero_page(&mut bus);
+
+        assert_eq!(operand.address, 0x0042);
+        assert_eq!(cpu.pc, 0x1001);
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn zero_page_x_wraps_within_page_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.x = 0x02;
+        bus.write(0x1000, 0xFF);
+
+        let operand = cpu.addr_zero_page_x(&mut bus);
+
+        assert_eq!(operand.address, 0x0001, "must wrap within page 0x00");
+    }
+
+    #[test]
+    fn zero_page_y_wraps_within_page_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.y = 0x10;
+        bus.write(0x1000, 0xFF);
+
+        let operand = cpu.addr_zero_page_y(&mut bus);
+
+        assert_eq!(operand.address, 0x000F, "must wrap within page 0x00");
+    }
+
+    #[test]
+    fn relative_positive_offset() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        bus.write(0x1000, 0x10); // +16
+
+        let operand = cpu.addr_relative(&mut bus);
+
+        // pc after consuming the offset byte is 0x1001; target is 0x1001 + 16
+        assert_eq!(operand.address, 0x1011);
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn relative_negative_offset() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        bus.write(0x1000, 0xFE); // -2 as i8
+
+        let operand = cpu.addr_relative(&mut bus);
+
+        // pc after operand byte is 0x1001; target is 0x1001 - 2 = 0x0FFF
+        assert_eq!(operand.address, 0x0FFF);
+        assert!(operand.page_crossed, "0x1001 -> 0x0FFF crosses a page");
+    }
+
+    #[test]
+    fn absolute_reads_little_endian_address() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        bus.write(0x1000, 0x00);
+        bus.write(0x1001, 0x80);
+
+        let operand = cpu.addr_absolute(&mut bus);
+
+        assert_eq!(operand.address, 0x8000);
+        assert_eq!(cpu.pc, 0x1002);
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn absolute_x_no_page_cross() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.x = 0x05;
+        bus.write(0x1000, 0x00);
+        bus.write(0x1001, 0x20); // base = 0x2000
+
+        let operand = cpu.addr_absolute_x(&mut bus);
+
+        assert_eq!(operand.address, 0x2005);
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn absolute_x_page_cross() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.x = 0x20;
+        bus.write(0x1000, 0xF0);
+        bus.write(0x1001, 0x20); // base = 0x20F0
+
+        let operand = cpu.addr_absolute_x(&mut bus);
+
+        assert_eq!(operand.address, 0x2110);
+        assert!(operand.page_crossed, "0x20F0 + 0x20 crosses into page 0x21");
+    }
+
+    #[test]
+    fn absolute_y_page_cross() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.y = 0xFF;
+        bus.write(0x1000, 0x01);
+        bus.write(0x1001, 0x20); // base = 0x2001
+
+        let operand = cpu.addr_absolute_y(&mut bus);
+
+        assert_eq!(operand.address, 0x2100);
+        assert!(operand.page_crossed);
+    }
+
+    #[test]
+    fn indirect_normal_case() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        bus.write(0x1000, 0x00);
+        bus.write(0x1001, 0x02); // pointer = 0x0200
+        bus.write(0x0200, 0x34);
+        bus.write(0x0201, 0x12); // real address = 0x1234
+
+        let operand = cpu.addr_indirect(&mut bus);
+
+        assert_eq!(operand.address, 0x1234);
+    }
+
+    #[test]
+    fn indirect_page_wrap_bug() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        bus.write(0x1000, 0xFF);
+        bus.write(0x1001, 0x02); // pointer = 0x02FF, triggers the bug
+
+        bus.write(0x02FF, 0x34); // low byte, read normally
+        bus.write(0x0200, 0x12); // high byte, buggy source (wraps to page start)
+        bus.write(0x0300, 0x99); // what a "correct" implementation would wrongly read
+
+        let operand = cpu.addr_indirect(&mut bus);
+
+        assert_eq!(
+            operand.address, 0x1234,
+            "high byte must come from 0x0200, not 0x0300"
+        );
+    }
+
+    #[test]
+    fn indirect_x_uses_index_before_pointer_lookup() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.x = 0x04;
+        bus.write(0x1000, 0x20); // zp_base
+        // pointer = zp_base + x = 0x24
+        bus.write(0x0024, 0x00);
+        bus.write(0x0025, 0x03); // real address = 0x0300
+
+        let operand = cpu.addr_indirect_x(&mut bus);
+
+        assert_eq!(operand.address, 0x0300);
+    }
+
+    #[test]
+    fn indirect_x_wraps_pointer_within_zero_page() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.x = 0x10;
+        bus.write(0x1000, 0xF8); // zp_base + x = 0x108, wraps to 0x08
+        bus.write(0x0008, 0x00);
+        bus.write(0x0009, 0x04); // real address = 0x0400
+
+        let operand = cpu.addr_indirect_x(&mut bus);
+
+        assert_eq!(operand.address, 0x0400);
+    }
+
+    #[test]
+    fn indirect_y_adds_index_after_pointer_lookup() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.y = 0x10;
+        bus.write(0x1000, 0x20); // zp_base, no index applied here
+        bus.write(0x0020, 0x00);
+        bus.write(0x0021, 0x03); // base address = 0x0300
+
+        let operand = cpu.addr_indirect_y(&mut bus);
+
+        assert_eq!(operand.address, 0x0310); // 0x0300 + y
+        assert!(!operand.page_crossed);
+    }
+
+    #[test]
+    fn indirect_y_page_cross() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        cpu.y = 0xFF;
+        bus.write(0x1000, 0x20);
+        bus.write(0x0020, 0x01);
+        bus.write(0x0021, 0x03); // base address = 0x0301
+
+        let operand = cpu.addr_indirect_y(&mut bus);
+
+        assert_eq!(operand.address, 0x0400);
+        assert!(operand.page_crossed);
+    }
+
+    #[test]
+    fn page_crossed_helper_detects_difference() {
+        assert!(page_crossed(0x20F0, 0x2110));
+        assert!(!page_crossed(0x2000, 0x2010));
     }
 }
