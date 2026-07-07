@@ -1,7 +1,12 @@
 mod addressing;
 mod flags;
+mod instructions;
+mod opcodes;
 
-use crate::{bus::Bus, cpu::addressing::*, cpu::flags::*};
+use crate::{
+    bus::Bus,
+    cpu::{flags::*, instructions::Instruction, opcodes::opcode_table},
+};
 
 /// Models the core of the MOS 6502.
 pub struct Cpu {
@@ -71,6 +76,15 @@ impl Cpu {
     }
 
     fn execute(&mut self, opcode: u8, bus: &mut Bus) -> u8 {
-        todo!()
+        let info = opcode_table()[opcode as usize];
+        let operand = self.resolve_address(info.mode, bus);
+
+        // TODO: check function pointers.
+        match info.instruction {
+            Instruction::ADC => self.adc(operand, bus),
+            _ => todo!("instruction not yet implemented: {:?}", info.instruction),
+        }
+
+        info.cycles
     }
 }

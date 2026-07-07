@@ -2,6 +2,7 @@ use crate::{bus::Bus, cpu::Cpu};
 
 /// The 6502's addressing modes: each describes a way of computing
 /// the effective address (or lack thereof) that an instruction operates on.
+#[derive(Clone, Copy, Debug)]
 pub enum AddressingMode {
     /// There is no additional data required for this instruction.
     Implied,
