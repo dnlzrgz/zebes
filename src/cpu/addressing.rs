@@ -4,6 +4,9 @@ use crate::{bus::Bus, cpu::Cpu};
 /// the effective address (or lack thereof) that an instruction operates on.
 #[derive(Clone, Copy, Debug)]
 pub enum AddressingMode {
+    /// Operand is the accumulator itself.
+    Accumulator,
+
     /// There is no additional data required for this instruction.
     Implied,
 
@@ -57,14 +60,34 @@ pub enum AddressingMode {
 }
 
 /// Result of solving an addressing mode.
-pub struct Operand {
-    pub address: u16,
-    pub page_crossed: bool,
+#[derive(Clone, Copy, Debug)]
+pub enum Operand {
+    /// Operand lives in a bus address.
+    Address { address: u16, page_crossed: bool },
+    /// Operand is the accumulator register itself.
+    Accumulator,
+}
+
+impl Operand {
+    /// Panics if called on Operand::Accumulator. Only valid for instructions whose opcodes never
+    /// use accumulator addressing.
+    pub fn expect_address(&self) -> (u16, bool) {
+        match self {
+            Operand::Address {
+                address,
+                page_crossed,
+            } => (*address, *page_crossed),
+            Operand::Accumulator => {
+                panic!("this instruction does not support accumulator addressing")
+            }
+        }
+    }
 }
 
 impl Cpu {
     pub fn resolve_address(&mut self, mode: AddressingMode, bus: &mut Bus) -> Operand {
         match mode {
+            AddressingMode::Accumulator => self.addr_accumulator(),
             AddressingMode::Implied => self.addr_implied(),
             AddressingMode::Immediate => self.addr_immediate(),
             AddressingMode::ZeroPage => self.addr_zero_page(bus),
@@ -80,8 +103,12 @@ impl Cpu {
         }
     }
 
+    fn addr_accumulator(&mut self) -> Operand {
+        Operand::Accumulator
+    }
+
     fn addr_implied(&mut self) -> Operand {
-        Operand {
+        Operand::Address {
             address: 0,
             page_crossed: false,
         }
@@ -90,7 +117,7 @@ impl Cpu {
     fn addr_immediate(&mut self) -> Operand {
         let address = self.pc;
         self.pc = self.pc.wrapping_add(1);
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -99,7 +126,7 @@ impl Cpu {
     fn addr_zero_page(&mut self, bus: &mut Bus) -> Operand {
         let address = bus.read(self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -109,7 +136,7 @@ impl Cpu {
         let base = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
         let address = base.wrapping_add(self.x) as u16;
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -119,7 +146,7 @@ impl Cpu {
         let base = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
         let address = base.wrapping_add(self.y) as u16;
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -133,7 +160,7 @@ impl Cpu {
         let base = self.pc;
         let address = base.wrapping_add(offset as i16 as u16);
 
-        Operand {
+        Operand::Address {
             address,
             page_crossed: page_crossed(base, address),
         }
@@ -142,7 +169,7 @@ impl Cpu {
     fn addr_absolute(&mut self, bus: &mut Bus) -> Operand {
         let address = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
         self.pc = self.pc.wrapping_add(2);
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -153,7 +180,7 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(2);
         let address = base.wrapping_add(self.x as u16);
 
-        Operand {
+        Operand::Address {
             address,
             page_crossed: page_crossed(base, address),
         }
@@ -164,7 +191,7 @@ impl Cpu {
         self.pc = self.pc.wrapping_add(2);
         let address = base.wrapping_add(self.y as u16);
 
-        Operand {
+        Operand::Address {
             address,
             page_crossed: page_crossed(base, address),
         }
@@ -188,7 +215,7 @@ impl Cpu {
 
         let address = u16::from_le_bytes([lo, hi]);
 
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -205,7 +232,7 @@ impl Cpu {
         let hi = bus.read(hi_addr);
 
         let address = u16::from_le_bytes([lo, hi]);
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -220,7 +247,7 @@ impl Cpu {
         let base = u16::from_le_bytes([lo, hi]);
 
         let address = base.wrapping_add(self.y as u16);
-        Operand {
+        Operand::Address {
             address,
             page_crossed: page_crossed(base, address),
         }
@@ -242,8 +269,9 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         let operand = cpu.addr_implied();
+        let (_, page_crossed) = operand.expect_address();
         assert_eq!(cpu.pc, 0x1000);
-        assert!(!operand.page_crossed);
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -251,9 +279,10 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         let operand = cpu.addr_immediate();
-        assert_eq!(operand.address, 0x1000);
+        let (address, page_crossed) = operand.expect_address();
+        assert_eq!(address, 0x1000);
         assert_eq!(cpu.pc, 0x1001);
-        assert!(!operand.page_crossed);
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -264,10 +293,11 @@ mod tests {
         bus.write(0x1000, 0x42);
 
         let operand = cpu.addr_zero_page(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x0042);
+        assert_eq!(address, 0x0042);
         assert_eq!(cpu.pc, 0x1001);
-        assert!(!operand.page_crossed);
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -279,8 +309,9 @@ mod tests {
         bus.write(0x1000, 0xFF);
 
         let operand = cpu.addr_zero_page_x(&mut bus);
+        let (address, _) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x0001, "must wrap within page 0x00");
+        assert_eq!(address, 0x0001, "must wrap within page 0x00");
     }
 
     #[test]
@@ -292,8 +323,9 @@ mod tests {
         bus.write(0x1000, 0xFF);
 
         let operand = cpu.addr_zero_page_y(&mut bus);
+        let (address, _) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x000F, "must wrap within page 0x00");
+        assert_eq!(address, 0x000F, "must wrap within page 0x00");
     }
 
     #[test]
@@ -304,10 +336,11 @@ mod tests {
         bus.write(0x1000, 0x10); // +16
 
         let operand = cpu.addr_relative(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
         // pc after consuming the offset byte is 0x1001; target is 0x1001 + 16
-        assert_eq!(operand.address, 0x1011);
-        assert!(!operand.page_crossed);
+        assert_eq!(address, 0x1011);
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -318,10 +351,11 @@ mod tests {
         bus.write(0x1000, 0xFE); // -2 as i8
 
         let operand = cpu.addr_relative(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
         // pc after operand byte is 0x1001; target is 0x1001 - 2 = 0x0FFF
-        assert_eq!(operand.address, 0x0FFF);
-        assert!(operand.page_crossed, "0x1001 -> 0x0FFF crosses a page");
+        assert_eq!(address, 0x0FFF);
+        assert!(page_crossed, "0x1001 -> 0x0FFF crosses a page");
     }
 
     #[test]
@@ -333,10 +367,11 @@ mod tests {
         bus.write(0x1001, 0x80);
 
         let operand = cpu.addr_absolute(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x8000);
+        assert_eq!(address, 0x8000);
         assert_eq!(cpu.pc, 0x1002);
-        assert!(!operand.page_crossed);
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -349,9 +384,10 @@ mod tests {
         bus.write(0x1001, 0x20); // base = 0x2000
 
         let operand = cpu.addr_absolute_x(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x2005);
-        assert!(!operand.page_crossed);
+        assert_eq!(address, 0x2005);
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -364,9 +400,10 @@ mod tests {
         bus.write(0x1001, 0x20); // base = 0x20F0
 
         let operand = cpu.addr_absolute_x(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x2110);
-        assert!(operand.page_crossed, "0x20F0 + 0x20 crosses into page 0x21");
+        assert_eq!(address, 0x2110);
+        assert!(page_crossed, "0x20F0 + 0x20 crosses into page 0x21");
     }
 
     #[test]
@@ -379,9 +416,10 @@ mod tests {
         bus.write(0x1001, 0x20); // base = 0x2001
 
         let operand = cpu.addr_absolute_y(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x2100);
-        assert!(operand.page_crossed);
+        assert_eq!(address, 0x2100);
+        assert!(page_crossed);
     }
 
     #[test]
@@ -395,8 +433,9 @@ mod tests {
         bus.write(0x0201, 0x12); // real address = 0x1234
 
         let operand = cpu.addr_indirect(&mut bus);
+        let (address, _) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x1234);
+        assert_eq!(address, 0x1234);
     }
 
     #[test]
@@ -412,9 +451,10 @@ mod tests {
         bus.write(0x0300, 0x99); // what a "correct" implementation would wrongly read
 
         let operand = cpu.addr_indirect(&mut bus);
+        let (address, _) = operand.expect_address();
 
         assert_eq!(
-            operand.address, 0x1234,
+            address, 0x1234,
             "high byte must come from 0x0200, not 0x0300"
         );
     }
@@ -431,8 +471,9 @@ mod tests {
         bus.write(0x0025, 0x03); // real address = 0x0300
 
         let operand = cpu.addr_indirect_x(&mut bus);
+        let (address, _) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x0300);
+        assert_eq!(address, 0x0300);
     }
 
     #[test]
@@ -446,8 +487,9 @@ mod tests {
         bus.write(0x0009, 0x04); // real address = 0x0400
 
         let operand = cpu.addr_indirect_x(&mut bus);
+        let (address, _) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x0400);
+        assert_eq!(address, 0x0400);
     }
 
     #[test]
@@ -461,9 +503,10 @@ mod tests {
         bus.write(0x0021, 0x03); // base address = 0x0300
 
         let operand = cpu.addr_indirect_y(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x0310); // 0x0300 + y
-        assert!(!operand.page_crossed);
+        assert_eq!(address, 0x0310); // 0x0300 + y
+        assert!(!page_crossed);
     }
 
     #[test]
@@ -477,9 +520,10 @@ mod tests {
         bus.write(0x0021, 0x03); // base address = 0x0301
 
         let operand = cpu.addr_indirect_y(&mut bus);
+        let (address, page_crossed) = operand.expect_address();
 
-        assert_eq!(operand.address, 0x0400);
-        assert!(operand.page_crossed);
+        assert_eq!(address, 0x0400);
+        assert!(page_crossed);
     }
 
     #[test]
