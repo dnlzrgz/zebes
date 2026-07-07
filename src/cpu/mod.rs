@@ -82,6 +82,7 @@ impl Cpu {
         // TODO: check function pointers.
         match info.instruction {
             Instruction::ADC => self.adc(operand, bus),
+            Instruction::AND => self.and(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         }
 

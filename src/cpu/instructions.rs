@@ -17,6 +17,12 @@ pub enum Instruction {
     /// state, avoiding off-by-one error. The overflow flag indicates whether signed overflow or
     /// underflow occurred.
     ADC,
+
+    /// Bitwise AND
+    /// A = A & memory
+    ///
+    /// ANDs a memory value and the accumulator, bit by bit. If both input bits are 1, the resulting
+    /// bit is 1. Otherwise, it is 0.
     AND,
     ASL,
     BCC,
@@ -124,6 +130,12 @@ impl Cpu {
 
         self.a = result;
     }
+
+    pub fn and(&mut self, operand: Operand, bus: &mut Bus) {
+        let value = bus.read(operand.address);
+        self.a &= value;
+        self.update_zn(self.a);
+    }
 }
 
 #[cfg(test)]
@@ -184,5 +196,32 @@ mod tests {
 
         // 1 + 1 + carry-in(1) = 3
         assert_eq!(cpu.a, 0x03);
+    }
+
+    #[test]
+    fn and_masks_acc_with_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b1100_1100;
+        bus.write(0x0000, 0b1010_1010);
+
+        cpu.and(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0b1000_1000);
+        assert!(!contains(cpu.status, ZERO));
+        assert!(contains(cpu.status, NEGATIVE)); // bit 7 is set in the result
+    }
+
+    #[test]
+    fn and_sets_zero_when_result_is_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b1111_0000;
+        bus.write(0x0000, 0b0000_1111); // no overlapping bits
+
+        cpu.and(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0);
+        assert!(contains(cpu.status, ZERO));
     }
 }
