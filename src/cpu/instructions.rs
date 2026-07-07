@@ -35,6 +35,17 @@ pub enum Instruction {
     /// This is a read-modify instruction, meaning that its addressing modes that operate on memory
     /// first write the original value back to the memory before the modified value.
     ASL,
+
+    /// Branch if Carry Clear
+    /// PC = PC + 2 memory (signed)
+    ///
+    /// If the carry flag is clear, BCC branches to a nearby location by adding the relative offset
+    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instruction.
+    /// The carry flag has different meanings depending on the context. BCC can be used after a
+    /// compare to branch if the register is less than the memory value, so it is sometimes called
+    /// BLT for Branch if Less Than. It can also be used after SBC to branch if the unsigned value
+    /// underflowed or after ADC to branch if it did not overflow.
     BCC,
     BCS,
     BEQ,
@@ -121,8 +132,8 @@ impl Cpu {
         set(&mut self.status, NEGATIVE, result & 0x80 != 0);
     }
 
-    pub fn adc(&mut self, operand: Operand, bus: &mut Bus) {
-        let (address, _) = operand.expect_address();
+    pub fn adc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
         let carry_in = if contains(self.status, CARRY) { 1 } else { 0 };
 
@@ -133,23 +144,26 @@ impl Cpu {
 
         // Overflow happens when the two operands have the same sign, but the result's sign differs
         // from theirs. XOR-ing self.a and value gives 0 in the sign bit when they match or 1 if the
-        // result result's sign flipped.
+        // result's sign flipped.
         let overflow = (!(self.a ^ value) & (self.a ^ result) & 0x80) != 0;
         set(&mut self.status, OVERFLOW, overflow);
 
         self.update_zn(result);
 
         self.a = result;
+
+        page_crossed as u8
     }
 
-    pub fn and(&mut self, operand: Operand, bus: &mut Bus) {
-        let (address, _) = operand.expect_address();
+    pub fn and(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
         self.a &= value;
         self.update_zn(self.a);
+        page_crossed as u8
     }
 
-    pub fn asl(&mut self, operand: Operand, bus: &mut Bus) {
+    pub fn asl(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let value = match operand {
             Operand::Accumulator => self.a,
             Operand::Address { address, .. } => bus.read(address),
@@ -164,6 +178,24 @@ impl Cpu {
         match operand {
             Operand::Accumulator => self.a = result,
             Operand::Address { address, .. } => bus.write(address, result),
+        }
+
+        0
+    }
+
+    pub fn bcc(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        if contains(self.status, CARRY) {
+            return 0;
+        }
+
+        let (address, _) = operand.expect_address();
+        let old_pc = self.pc;
+        self.pc = address;
+
+        if (old_pc & 0xFF00) != (address & 0xFF00) {
+            2
+        } else {
+            1
         }
     }
 }
@@ -189,7 +221,7 @@ mod tests {
         cpu.a = 0x10;
         bus.write(0x0000, 0x05);
 
-        cpu.adc(operand_at(0x0000), &mut bus);
+        let extra_cycles = cpu.adc(operand_at(0x0000), &mut bus);
 
         // 16 + 5 = 21 (0x15)
         assert_eq!(cpu.a, 0x15);
@@ -197,6 +229,7 @@ mod tests {
         assert!(!contains(cpu.status, ZERO));
         assert!(!contains(cpu.status, OVERFLOW));
         assert!(!contains(cpu.status, NEGATIVE));
+        assert_eq!(extra_cycles, 0);
     }
 
     #[test]
@@ -229,17 +262,34 @@ mod tests {
     }
 
     #[test]
+    fn adc_returns_one_extra_cycle_when_page_crossed() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x10;
+        bus.write(0x0000, 0x05);
+
+        let operand = Operand::Address {
+            address: 0x0000,
+            page_crossed: true,
+        };
+        let extra_cycles = cpu.adc(operand, &mut bus);
+
+        assert_eq!(extra_cycles, 1);
+    }
+
+    #[test]
     fn and_masks_acc_with_memory() {
         let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1100_1100;
         bus.write(0x0000, 0b1010_1010);
 
-        cpu.and(operand_at(0x0000), &mut bus);
+        let extra_cycles = cpu.and(operand_at(0x0000), &mut bus);
 
         assert_eq!(cpu.a, 0b1000_1000);
         assert!(!contains(cpu.status, ZERO));
         assert!(contains(cpu.status, NEGATIVE)); // bit 7 is set in the result
+        assert_eq!(extra_cycles, 0);
     }
 
     #[test]
@@ -253,6 +303,22 @@ mod tests {
 
         assert_eq!(cpu.a, 0);
         assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn and_returns_extra_cycle_when_page_crossed() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0xFF;
+        bus.write(0x0000, 0xFF);
+
+        let operand = Operand::Address {
+            address: 0x0000,
+            page_crossed: true,
+        };
+        let extra_cycles = cpu.and(operand, &mut bus);
+
+        assert_eq!(extra_cycles, 1);
     }
 
     #[test]
@@ -324,5 +390,65 @@ mod tests {
         assert_eq!(cpu.a, 0b1000_0000);
         assert!(contains(cpu.status, CARRY));
         assert!(contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn bcc_does_not_branch_when_carry_is_set() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, CARRY, true);
+
+        let operand = Operand::Address {
+            address: 0x2000,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcc(operand, &mut bus);
+
+        assert_eq!(
+            cpu.pc, 0x1000,
+            "pc must be untouched when the branch isn't taken"
+        );
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn bcc_branches_when_carry_is_clear_same_page() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, CARRY, false);
+
+        let operand = Operand::Address {
+            address: 0x1010,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcc(operand, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1010);
+        assert_eq!(
+            extra_cycles, 1,
+            "branch taken, same page, costs 1 extra cycle"
+        );
+    }
+
+    #[test]
+    fn bcc_branch_taken_adds_two_cycles_when_page_crossed() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, CARRY, false);
+
+        let operand = Operand::Address {
+            address: 0x1105,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcc(operand, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1105);
+        assert_eq!(
+            extra_cycles, 2,
+            "branch taken, crosses a page, costs 2 extra cycles"
+        );
     }
 }

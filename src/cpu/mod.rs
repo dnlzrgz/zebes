@@ -80,13 +80,13 @@ impl Cpu {
         let operand = self.resolve_address(info.mode, bus);
 
         // TODO: check function pointers.
-        match info.instruction {
+        let extra = match info.instruction {
             Instruction::ADC => self.adc(operand, bus),
             Instruction::AND => self.and(operand, bus),
             Instruction::ASL => self.asl(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
-        }
+        };
 
-        info.cycles
+        info.cycles + extra
     }
 }
