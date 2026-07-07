@@ -24,6 +24,16 @@ pub enum Instruction {
     /// ANDs a memory value and the accumulator, bit by bit. If both input bits are 1, the resulting
     /// bit is 1. Otherwise, it is 0.
     AND,
+
+    /// Arithmetic Shift Left
+    /// value = value << 1
+    ///
+    /// ASL shifts all the bits of a memory value or the accumulator one position to the left,
+    /// moving the value of each bit into the next bit. Bit 7 is shifted into the carry flag, and 0
+    /// is shifted into bit 0. This is equivalent to multiplying an usigned value by 2, with carry
+    /// indicating overflow.
+    /// This is a read-modify instruction, meaning that its addressing modes that operate on memory
+    /// first write the original value back to the memory before the modified value.
     ASL,
     BCC,
     BCS,
@@ -112,7 +122,8 @@ impl Cpu {
     }
 
     pub fn adc(&mut self, operand: Operand, bus: &mut Bus) {
-        let value = bus.read(operand.address);
+        let (address, _) = operand.expect_address();
+        let value = bus.read(address);
         let carry_in = if contains(self.status, CARRY) { 1 } else { 0 };
 
         let sum = self.a as u16 + value as u16 + carry_in as u16;
@@ -132,9 +143,28 @@ impl Cpu {
     }
 
     pub fn and(&mut self, operand: Operand, bus: &mut Bus) {
-        let value = bus.read(operand.address);
+        let (address, _) = operand.expect_address();
+        let value = bus.read(address);
         self.a &= value;
         self.update_zn(self.a);
+    }
+
+    pub fn asl(&mut self, operand: Operand, bus: &mut Bus) {
+        let value = match operand {
+            Operand::Accumulator => self.a,
+            Operand::Address { address, .. } => bus.read(address),
+        };
+
+        let temp = (value as u16) << 1;
+        let result = temp as u8;
+
+        set(&mut self.status, CARRY, temp > 0xFF);
+        self.update_zn(result);
+
+        match operand {
+            Operand::Accumulator => self.a = result,
+            Operand::Address { address, .. } => bus.write(address, result),
+        }
     }
 }
 
@@ -146,7 +176,7 @@ mod tests {
     use crate::cpu::addressing::Operand;
 
     fn operand_at(address: u16) -> Operand {
-        Operand {
+        Operand::Address {
             address,
             page_crossed: false,
         }
@@ -223,5 +253,76 @@ mod tests {
 
         assert_eq!(cpu.a, 0);
         assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn asl_shifts_memory_value_left() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0b0000_0001);
+
+        cpu.asl(operand_at(0x0000), &mut bus);
+
+        // The shifted result must be written back to the same address it was read from.
+        assert_eq!(bus.peek(0x0000), 0b0000_0010);
+    }
+
+    #[test]
+    fn asl_sets_carry_when_bit_7_shifts_out() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0b1000_0000); // bit 7 set
+
+        cpu.asl(operand_at(0x0000), &mut bus);
+
+        // Shifting 0b1000_0000 left pushes that 1 out of the byte entirely. CARRY is where that
+        // lost bit should end up.
+        assert_eq!(bus.peek(0x0000), 0b0000_0000);
+        assert!(contains(cpu.status, CARRY));
+        assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn asl_does_not_set_carry_when_bit_7_is_clear() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0b0100_0000); // bit 7 clear, bit 6 set
+
+        cpu.asl(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0b1000_0000);
+        assert!(!contains(cpu.status, CARRY));
+        assert!(contains(cpu.status, NEGATIVE)); // shifted bit 6 into bit 7
+    }
+
+    #[test]
+    fn asl_accumulator_mode_shifts_register_not_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b0000_0011;
+        bus.write(0x0000, 0xFF); // must remain untouched
+
+        cpu.asl(Operand::Accumulator, &mut bus);
+
+        // No bus access should happen at all.
+        assert_eq!(cpu.a, 0b0000_0110);
+        assert_eq!(
+            bus.peek(0x0000),
+            0xFF,
+            "accumulator mode must not touch the bus"
+        );
+    }
+
+    #[test]
+    fn asl_accumulator_mode_sets_carry_correctly() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b1100_0000;
+
+        cpu.asl(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.a, 0b1000_0000);
+        assert!(contains(cpu.status, CARRY));
+        assert!(contains(cpu.status, NEGATIVE));
     }
 }

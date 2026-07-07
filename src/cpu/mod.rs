@@ -83,6 +83,7 @@ impl Cpu {
         match info.instruction {
             Instruction::ADC => self.adc(operand, bus),
             Instruction::AND => self.and(operand, bus),
+            Instruction::ASL => self.asl(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         }
 
