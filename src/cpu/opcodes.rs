@@ -57,7 +57,13 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x06] = op!(ASL, ZeroPage, 5);
     table[0x16] = op!(ASL, ZeroPageX, 6);
     table[0x0E] = op!(ASL, Absolute, 6);
-    table[0x1E] = op!(ASL, AbsoluteX, 7); // note: RMW instructions always take the max cycles, no page-crossing check
+    table[0x1E] = op!(ASL, AbsoluteX, 7); // RMW instructions always take the max cycles, no page-crossing check
+    //
+    // BCC — Branch if Carry Clear
+    table[0x90] = op!(BCC, Relative, 2);
+
+    // BCS — Branch if Carry Set
+    table[0xB0] = op!(BCS, Relative, 2);
 
     table
 }

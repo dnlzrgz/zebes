@@ -6,46 +6,9 @@ use crate::{
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Instruction {
-    /// Add with Carry
-    /// A = A + memory + C
-    ///
-    /// Adds the carry flag and a memory value to the accumulator. The carry flag is then set to the
-    /// carry value comint out of bit 7, allowing larger than 1 byte to be added together by
-    /// carrying the 1 into the next byte's addition. This can also be thought of as unsigned
-    /// overflow.
-    /// It is common to clear carry with CLC before adding the first byte to ensure it is in a known
-    /// state, avoiding off-by-one error. The overflow flag indicates whether signed overflow or
-    /// underflow occurred.
     ADC,
-
-    /// Bitwise AND
-    /// A = A & memory
-    ///
-    /// ANDs a memory value and the accumulator, bit by bit. If both input bits are 1, the resulting
-    /// bit is 1. Otherwise, it is 0.
     AND,
-
-    /// Arithmetic Shift Left
-    /// value = value << 1
-    ///
-    /// ASL shifts all the bits of a memory value or the accumulator one position to the left,
-    /// moving the value of each bit into the next bit. Bit 7 is shifted into the carry flag, and 0
-    /// is shifted into bit 0. This is equivalent to multiplying an usigned value by 2, with carry
-    /// indicating overflow.
-    /// This is a read-modify instruction, meaning that its addressing modes that operate on memory
-    /// first write the original value back to the memory before the modified value.
     ASL,
-
-    /// Branch if Carry Clear
-    /// PC = PC + 2 memory (signed)
-    ///
-    /// If the carry flag is clear, BCC branches to a nearby location by adding the relative offset
-    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
-    /// first byte *after* the branch instruction.
-    /// The carry flag has different meanings depending on the context. BCC can be used after a
-    /// compare to branch if the register is less than the memory value, so it is sometimes called
-    /// BLT for Branch if Less Than. It can also be used after SBC to branch if the unsigned value
-    /// underflowed or after ADC to branch if it did not overflow.
     BCC,
     BCS,
     BEQ,
@@ -132,6 +95,31 @@ impl Cpu {
         set(&mut self.status, NEGATIVE, result & 0x80 != 0);
     }
 
+    fn branch_if(&mut self, condition: bool, operand: Operand) -> u8 {
+        if !condition {
+            return 0;
+        }
+
+        let (address, _) = operand.expect_address();
+        let old_pc = self.pc;
+        self.pc = address;
+        if (old_pc & 0xFF00) != (address & 0xFF00) {
+            2
+        } else {
+            1
+        }
+    }
+
+    /// Add with Carry
+    /// A = A + memory + C
+    ///
+    /// Adds the carry flag and a memory value to the accumulator. The carry flag is then set to the
+    /// carry value comint out of bit 7, allowing larger than 1 byte to be added together by
+    /// carrying the 1 into the next byte's addition. This can also be thought of as unsigned
+    /// overflow.
+    /// It is common to clear carry with CLC before adding the first byte to ensure it is in a known
+    /// state, avoiding off-by-one error. The overflow flag indicates whether signed overflow or
+    /// underflow occurred.
     pub fn adc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
@@ -155,6 +143,11 @@ impl Cpu {
         page_crossed as u8
     }
 
+    /// Bitwise AND
+    /// A = A & memory
+    ///
+    /// ANDs a memory value and the accumulator, bit by bit. If both input bits are 1, the resulting
+    /// bit is 1. Otherwise, it is 0.
     pub fn and(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
@@ -163,6 +156,15 @@ impl Cpu {
         page_crossed as u8
     }
 
+    /// Arithmetic Shift Left
+    /// value = value << 1
+    ///
+    /// ASL shifts all the bits of a memory value or the accumulator one position to the left,
+    /// moving the value of each bit into the next bit. Bit 7 is shifted into the carry flag, and 0
+    /// is shifted into bit 0. This is equivalent to multiplying an usigned value by 2, with carry
+    /// indicating overflow.
+    /// This is a read-modify instruction, meaning that its addressing modes that operate on memory
+    /// first write the original value back to the memory before the modified value.
     pub fn asl(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let value = match operand {
             Operand::Accumulator => self.a,
@@ -183,20 +185,32 @@ impl Cpu {
         0
     }
 
+    /// Branch if Carry Clear
+    /// PC = PC + 2 memory (signed)
+    ///
+    /// If the carry flag is clear, BCC branches to a nearby location by adding the relative offset
+    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instruction.
+    /// The carry flag has different meanings depending on the context. BCC can be used after a
+    /// compare to branch if the register is less than the memory value, so it is sometimes called
+    /// BLT for Branch if Less Than. It can also be used after SBC to branch if the unsigned value
+    /// underflowed or after ADC to branch if it did not overflow.
     pub fn bcc(&mut self, operand: Operand, _: &mut Bus) -> u8 {
-        if contains(self.status, CARRY) {
-            return 0;
-        }
+        self.branch_if(!contains(self.status, CARRY), operand)
+    }
 
-        let (address, _) = operand.expect_address();
-        let old_pc = self.pc;
-        self.pc = address;
-
-        if (old_pc & 0xFF00) != (address & 0xFF00) {
-            2
-        } else {
-            1
-        }
+    /// Branch if Carry Set
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the carry flag is set, BCS branches to a nearby location by adding the branch offset to
+    /// the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instruction.
+    /// The carry flag has different meanings depending on the context. BCS can be used after a
+    /// compare to branch if the register is greater than or equal to the memory value, so it is
+    /// sometimes called BGE for Branch if Greater Than or Equal. It can also be used after ADC to
+    /// branch if the usigned value overflowed or after SBC to branch if it did not underflow.
+    pub fn bcs(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(contains(self.status, CARRY), operand)
     }
 }
 
@@ -444,6 +458,66 @@ mod tests {
             page_crossed: false,
         };
         let extra_cycles = cpu.bcc(operand, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1105);
+        assert_eq!(
+            extra_cycles, 2,
+            "branch taken, crosses a page, costs 2 extra cycles"
+        );
+    }
+
+    #[test]
+    fn bcs_does_not_branch_when_carry_clear() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, CARRY, false);
+
+        let operand = Operand::Address {
+            address: 0x2000,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcs(operand, &mut bus);
+
+        assert_eq!(
+            cpu.pc, 0x1000,
+            "pc must be untouched when the branch isn't taken"
+        );
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn bcs_branches_when_carry_set_same_page() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, CARRY, true);
+
+        let operand = Operand::Address {
+            address: 0x1010,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcs(operand, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1010);
+        assert_eq!(
+            extra_cycles, 1,
+            "branch taken, same page, costs 1 extra cycle"
+        );
+    }
+
+    #[test]
+    fn bcs_branches_across_page_boundary() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, CARRY, true);
+
+        let operand = Operand::Address {
+            address: 0x1105,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcs(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1105);
         assert_eq!(
