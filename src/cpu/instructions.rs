@@ -225,6 +225,33 @@ impl Cpu {
     pub fn beq(&mut self, operand: Operand, _: &mut Bus) -> u8 {
         self.branch_if(contains(self.status, ZERO), operand)
     }
+
+    /// Bit Test
+    /// A & memory
+    ///
+    /// BIT modifies flags, but does not change memory or registers. The zero flag is set depending
+    /// on the result of the accumulator AND memory value, effectively applying a bitmask and then
+    /// checking if any bits are set. Bits 7 and 6 of the memory value are loaded directly into the
+    /// negative and overflow flags, allowing them to be easily checked without having to load a
+    /// mask into A.
+    /// Because BIT only changes CPU flags, it is sometimes used to trigger the read side effects of
+    /// a hardware register without cloberring any CPU registers, or even to waste cycles as a
+    /// 3-cycle NOP. As an advance trick, it is occasionally used to hide a 1- or 2-byte instruction
+    /// in its operand that is only executed if jumped to direclty, allowing two code paths to be
+    /// interleaved. However, because the instruction in the operand is treated as an address from
+    /// which to read, this carries risk of triggering side effects if it reads a hardware register.
+    /// This trick can be useful when working under tight constraints on space, time, or register
+    /// usage.
+    pub fn bit(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        let value = bus.read(address);
+
+        set(&mut self.status, ZERO, (self.a & value) == 0x00);
+        set(&mut self.status, NEGATIVE, value & 0x80 != 0);
+        set(&mut self.status, OVERFLOW, value & 0x40 != 0);
+
+        0
+    }
 }
 
 #[cfg(test)]
@@ -399,11 +426,7 @@ mod tests {
 
         // No bus access should happen at all.
         assert_eq!(cpu.a, 0b0000_0110);
-        assert_eq!(
-            bus.peek(0x0000),
-            0xFF,
-            "accumulator mode must not touch the bus"
-        );
+        assert_eq!(bus.peek(0x0000), 0xFF);
     }
 
     #[test]
@@ -432,10 +455,7 @@ mod tests {
         };
         let extra_cycles = cpu.bcc(operand, &mut bus);
 
-        assert_eq!(
-            cpu.pc, 0x1000,
-            "pc must be untouched when the branch isn't taken"
-        );
+        assert_eq!(cpu.pc, 0x1000);
         assert_eq!(extra_cycles, 0);
     }
 
@@ -453,10 +473,7 @@ mod tests {
         let extra_cycles = cpu.bcc(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1010);
-        assert_eq!(
-            extra_cycles, 1,
-            "branch taken, same page, costs 1 extra cycle"
-        );
+        assert_eq!(extra_cycles, 1);
     }
 
     #[test]
@@ -473,10 +490,7 @@ mod tests {
         let extra_cycles = cpu.bcc(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1105);
-        assert_eq!(
-            extra_cycles, 2,
-            "branch taken, crosses a page, costs 2 extra cycles"
-        );
+        assert_eq!(extra_cycles, 2);
     }
 
     #[test]
@@ -492,10 +506,7 @@ mod tests {
         };
         let extra_cycles = cpu.bcs(operand, &mut bus);
 
-        assert_eq!(
-            cpu.pc, 0x1000,
-            "pc must be untouched when the branch isn't taken"
-        );
+        assert_eq!(cpu.pc, 0x1000);
         assert_eq!(extra_cycles, 0);
     }
 
@@ -513,10 +524,7 @@ mod tests {
         let extra_cycles = cpu.bcs(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1010);
-        assert_eq!(
-            extra_cycles, 1,
-            "branch taken, same page, costs 1 extra cycle"
-        );
+        assert_eq!(extra_cycles, 1);
     }
 
     #[test]
@@ -533,10 +541,7 @@ mod tests {
         let extra_cycles = cpu.bcs(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1105);
-        assert_eq!(
-            extra_cycles, 2,
-            "branch taken, crosses a page, costs 2 extra cycles"
-        );
+        assert_eq!(extra_cycles, 2);
     }
 
     #[test]
@@ -552,10 +557,7 @@ mod tests {
         };
         let extra_cycles = cpu.bcs(operand, &mut bus);
 
-        assert_eq!(
-            cpu.pc, 0x1000,
-            "pc must be untouched when the branch isn't taken"
-        );
+        assert_eq!(cpu.pc, 0x1000);
         assert_eq!(extra_cycles, 0);
     }
 
@@ -573,10 +575,7 @@ mod tests {
         let extra_cycles = cpu.bcs(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1010);
-        assert_eq!(
-            extra_cycles, 1,
-            "branch taken, same page, costs 1 extra cycle"
-        );
+        assert_eq!(extra_cycles, 1);
     }
 
     #[test]
@@ -593,9 +592,72 @@ mod tests {
         let extra_cycles = cpu.bcs(operand, &mut bus);
 
         assert_eq!(cpu.pc, 0x1105);
-        assert_eq!(
-            extra_cycles, 2,
-            "branch taken, crosses a page, costs 2 extra cycles"
-        );
+        assert_eq!(extra_cycles, 2);
+    }
+
+    #[test]
+    fn bit_sets_zero_when_and_result_is_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+
+        cpu.a = 0b0000_1111;
+        bus.write(0x0000, 0b1111_0000);
+
+        cpu.bit(operand_at(0x0000), &mut bus);
+
+        // No bits overlap, so A & memory is zero.
+        assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn bit_clears_zero_when_and_result_is_nonzero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+
+        cpu.a = 0b0000_1111;
+        bus.write(0x0000, 0b0000_1000);
+
+        cpu.bit(operand_at(0x0000), &mut bus);
+
+        assert!(!contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn bit_copies_bit_7_into_negative_flag() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+
+        cpu.a = 0xFF;
+        bus.write(0x0000, 0b1000_0000);
+
+        cpu.bit(operand_at(0x0000), &mut bus);
+
+        assert!(contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn bit_copies_bit_6_into_overflow_flag() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+
+        cpu.a = 0xFF;
+        bus.write(0x0000, 0b0100_0000);
+
+        cpu.bit(operand_at(0x0000), &mut bus);
+
+        assert!(contains(cpu.status, OVERFLOW));
+    }
+
+    #[test]
+    fn bit_does_not_modify_accumulator() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+
+        cpu.a = 0x55;
+        bus.write(0x0000, 0xFF);
+
+        cpu.bit(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0x55);
     }
 }

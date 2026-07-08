@@ -68,6 +68,10 @@ fn build_opcode_table() -> [Opcode; 256] {
     // BEQ — Branch if Equal
     table[0xF0] = op!(BEQ, Relative, 2);
 
+    // BIT — Bit Test
+    table[0x24] = op!(BIT, ZeroPage, 3);
+    table[0x2C] = op!(BIT, Absolute, 4);
+
     table
 }
 
