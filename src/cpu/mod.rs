@@ -86,6 +86,7 @@ impl Cpu {
             Instruction::ASL => self.asl(operand, bus),
             Instruction::BCC => self.bcc(operand, bus),
             Instruction::BCS => self.bcs(operand, bus),
+            Instruction::BEQ => self.beq(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

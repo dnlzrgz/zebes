@@ -212,6 +212,19 @@ impl Cpu {
     pub fn bcs(&mut self, operand: Operand, _: &mut Bus) -> u8 {
         self.branch_if(contains(self.status, CARRY), operand)
     }
+
+    /// Branch if Equal
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the zero flag is set, BEQ branches to a nearby location by adding the branch offset to
+    /// the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instruction.
+    /// Comparison uses this flag to indicate if the compared values are equal. All instructions
+    /// that change A, X, or Y also implicitly set or clear the zero flag depending on whether the
+    /// register becomes 0.
+    pub fn beq(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(contains(self.status, ZERO), operand)
+    }
 }
 
 #[cfg(test)]
@@ -508,6 +521,66 @@ mod tests {
 
     #[test]
     fn bcs_branches_across_page_boundary() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, CARRY, true);
+
+        let operand = Operand::Address {
+            address: 0x1105,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcs(operand, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1105);
+        assert_eq!(
+            extra_cycles, 2,
+            "branch taken, crosses a page, costs 2 extra cycles"
+        );
+    }
+
+    #[test]
+    fn beq_does_not_branch_when_zero_clear() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, ZERO, false);
+
+        let operand = Operand::Address {
+            address: 0x2000,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcs(operand, &mut bus);
+
+        assert_eq!(
+            cpu.pc, 0x1000,
+            "pc must be untouched when the branch isn't taken"
+        );
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn beq_branches_when_zero_set_same_page() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, CARRY, true);
+
+        let operand = Operand::Address {
+            address: 0x1010,
+            page_crossed: false,
+        };
+        let extra_cycles = cpu.bcs(operand, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1010);
+        assert_eq!(
+            extra_cycles, 1,
+            "branch taken, same page, costs 1 extra cycle"
+        );
+    }
+
+    #[test]
+    fn beq_branches_across_page_boundary() {
         let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x10F0;

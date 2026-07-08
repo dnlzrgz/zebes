@@ -65,6 +65,9 @@ fn build_opcode_table() -> [Opcode; 256] {
     // BCS — Branch if Carry Set
     table[0xB0] = op!(BCS, Relative, 2);
 
+    // BEQ — Branch if Equal
+    table[0xF0] = op!(BEQ, Relative, 2);
+
     table
 }
 
