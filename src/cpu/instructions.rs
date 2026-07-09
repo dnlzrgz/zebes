@@ -330,6 +330,36 @@ impl Cpu {
 
         0
     }
+
+    /// Branch if Overflow Clear
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the overflowing flag is clear, BVC branches to a nearby location by adding the branch
+    /// offset to the program counter. The offset is signed and has a range of [-128, 127] relative
+    /// to the first byte after the branch instruction.
+    /// Unlike zero, negative, and even carry, overflow is modified by very few instructions. It is
+    /// most often used with the BIT instruction, particularly for polling hardware registers. It is
+    /// also sometimes used for signed overflow with ADC and SBC. The standard 6502 chip allows an
+    /// external device to set overflow usign a pin, enabling software to poll for that event, but
+    /// this is not present on the NES' 2A03.
+    pub fn bvc(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(!contains(self.status, OVERFLOW), operand)
+    }
+
+    /// Branch if Overflow Set
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the overflow flag is set, BVS branches to a nearby location by adding the branch offset
+    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte after the branch instruction.
+    /// Unlike zero, negative, and even carry, overflow is modified by very few instructions. It is
+    /// most often used with the BIT instruction, particularly for polling hardware registers. It is
+    /// also sometimes used for signed overflow with ADC and SBC. The standard 6502 chip allows an
+    /// external device to set overflow usign a pin, enabling software to poll for that event, but
+    /// this is not present on the NES' 2A03.
+    pub fn bvs(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(contains(self.status, OVERFLOW), operand)
+    }
 }
 
 #[cfg(test)]
@@ -810,5 +840,51 @@ mod tests {
         assert_eq!(cpu.pc, 0x8000);
 
         assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn bvc_branches_when_overflow_clear() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, OVERFLOW, false);
+        assert_branch_taken(Cpu::bvc, &mut cpu, 0x1010, 1);
+    }
+
+    #[test]
+    fn bvc_does_not_branch_when_overflow_is_set() {
+        let mut cpu = Cpu::new();
+        set(&mut cpu.status, OVERFLOW, true);
+        assert_branch_not_taken(Cpu::bvc, &mut cpu);
+    }
+
+    #[test]
+    fn bvc_branches_across_page_boundary() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, OVERFLOW, false);
+        assert_branch_taken(Cpu::bvc, &mut cpu, 0x1105, 2);
+    }
+
+    #[test]
+    fn bvs_branches_when_overflow_is_set() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, OVERFLOW, true);
+        assert_branch_taken(Cpu::bvs, &mut cpu, 0x1010, 1);
+    }
+
+    #[test]
+    fn bvs_does_not_branch_when_overflow_is_clear() {
+        let mut cpu = Cpu::new();
+        set(&mut cpu.status, OVERFLOW, false);
+        assert_branch_not_taken(Cpu::bvs, &mut cpu);
+    }
+
+    #[test]
+    fn bvs_branches_across_page_boundary() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, OVERFLOW, true);
+        assert_branch_taken(Cpu::bvs, &mut cpu, 0x1105, 2);
     }
 }

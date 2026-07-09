@@ -84,6 +84,12 @@ fn build_opcode_table() -> [Opcode; 256] {
     // BRK — Force Interrupt
     table[0x00] = op!(BRK, Implied, 7);
 
+    // BVC — Branch if Overflow Clear
+    table[0x50] = op!(BVC, Relative, 2);
+
+    // BVS — Branch if Overflow Set
+    table[0x70] = op!(BVS, Relative, 2);
+
     table
 }
 
