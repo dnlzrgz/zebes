@@ -81,6 +81,9 @@ fn build_opcode_table() -> [Opcode; 256] {
     // BPL — Branch if Plus
     table[0x10] = op!(BPL, Relative, 2);
 
+    // BRK — Force Interrupt
+    table[0x00] = op!(BRK, Implied, 7);
+
     table
 }
 

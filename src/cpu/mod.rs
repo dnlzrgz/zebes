@@ -75,6 +75,11 @@ impl Cpu {
         self.cycles -= 1;
     }
 
+    fn push_byte(&mut self, bus: &mut Bus, value: u8) {
+        bus.write(0x0100 + self.sp as u16, value);
+        self.sp = self.sp.wrapping_sub(1);
+    }
+
     fn execute(&mut self, opcode: u8, bus: &mut Bus) -> u8 {
         let info = opcode_table()[opcode as usize];
         let operand = self.resolve_address(info.mode, bus);
@@ -91,6 +96,7 @@ impl Cpu {
             Instruction::BMI => self.bmi(operand, bus),
             Instruction::BNE => self.bne(operand, bus),
             Instruction::BPL => self.bpl(operand, bus),
+            Instruction::BRK => self.brk(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 
