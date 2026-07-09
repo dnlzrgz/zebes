@@ -2,5 +2,13 @@
 name = "zebes"
 version = "0.1.0"
 edition = "2024"
+authors = ["dnlzrgz <contact@dnlzrgz.com>"]
+description = "A NES emulator written in Rust just for fun."
+readme = "README.md"
+repository = "https://github.com/dnlzrgz/zebes"
+license = "MIT"
+keywords = ["nes", "emulator", "6502"]
+categories = ["emulators"]
+publish = false
 
 [dependencies]
