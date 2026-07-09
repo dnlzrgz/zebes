@@ -99,6 +99,10 @@ impl Cpu {
             Instruction::BRK => self.brk(operand, bus),
             Instruction::BVC => self.bvc(operand, bus),
             Instruction::BVS => self.bvs(operand, bus),
+            Instruction::CLC => self.clc(operand, bus),
+            Instruction::CLD => self.cld(operand, bus),
+            Instruction::CLI => self.cli(operand, bus),
+            Instruction::CLV => self.clv(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

@@ -90,6 +90,18 @@ fn build_opcode_table() -> [Opcode; 256] {
     // BVS — Branch if Overflow Set
     table[0x70] = op!(BVS, Relative, 2);
 
+    // CLC — Clear Carry Flag
+    table[0x18] = op!(CLC, Implied, 2);
+
+    // CLD — Clear Decimal Mode
+    table[0xD8] = op!(CLD, Implied, 2);
+
+    // CLI — Clear Interrupt Disable
+    table[0x58] = op!(CLI, Implied, 2);
+
+    // CLV — Clear Overflow Flag
+    table[0xB8] = op!(CLV, Implied, 2);
+
     table
 }
 
