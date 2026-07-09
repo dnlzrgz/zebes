@@ -88,6 +88,9 @@ impl Cpu {
             Instruction::BCS => self.bcs(operand, bus),
             Instruction::BEQ => self.beq(operand, bus),
             Instruction::BIT => self.bit(operand, bus),
+            Instruction::BMI => self.bmi(operand, bus),
+            Instruction::BNE => self.bne(operand, bus),
+            Instruction::BPL => self.bpl(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

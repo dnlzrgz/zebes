@@ -252,6 +252,43 @@ impl Cpu {
 
         0
     }
+
+    /// Branch if Minus
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the negative flag is set, BMI branches to a nearby location by adding the branch offset
+    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instructions.
+    /// All instructions that change A, X, or Y implicitly set or clear the negative flag based on
+    /// bit 7 (the sign bit).
+    pub fn bmi(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(contains(self.status, NEGATIVE), operand)
+    }
+
+    /// Branch if Not Equal
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the zero flag is clear, BNE branches to a nearby location by adding the branch offset to
+    /// the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instruction.
+    /// Comparison uses this flag to indicate if the compared values are equal. All instructions
+    /// that change A, X, or Y also implicitly set or clear the zero flag depending on whether the
+    /// register becomes 0.
+    pub fn bne(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(!contains(self.status, ZERO), operand)
+    }
+
+    /// Branch if Plus
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the negative flag is clear, BPL branches to a nearby location by adding the branch offset
+    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch isntruction.
+    /// All instructions that change A, X, or Y implicitly set or clear the negative flag based on
+    /// bit 7 (the sign bit).
+    pub fn bpl(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(!contains(self.status, NEGATIVE), operand)
+    }
 }
 
 #[cfg(test)]
@@ -266,6 +303,28 @@ mod tests {
             address,
             page_crossed: false,
         }
+    }
+
+    fn assert_branch_not_taken(branch_fn: fn(&mut Cpu, Operand, &mut Bus) -> u8, cpu: &mut Cpu) {
+        let mut bus = Bus::new();
+        cpu.pc = 0x1000;
+        let operand = operand_at(0x2000);
+        let extra_cycles = branch_fn(cpu, operand, &mut bus);
+        assert_eq!(cpu.pc, 0x1000);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    fn assert_branch_taken(
+        branch_fn: fn(&mut Cpu, Operand, &mut Bus) -> u8,
+        cpu: &mut Cpu,
+        target: u16,
+        expected_extra_cycles: u8,
+    ) {
+        let mut bus = Bus::new();
+        let operand = operand_at(target);
+        let extra_cycles = branch_fn(cpu, operand, &mut bus);
+        assert_eq!(cpu.pc, target);
+        assert_eq!(extra_cycles, expected_extra_cycles);
     }
 
     #[test]
@@ -444,155 +503,71 @@ mod tests {
 
     #[test]
     fn bcc_does_not_branch_when_carry_is_set() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
-        cpu.pc = 0x1000;
         set(&mut cpu.status, CARRY, true);
-
-        let operand = Operand::Address {
-            address: 0x2000,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcc(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1000);
-        assert_eq!(extra_cycles, 0);
+        assert_branch_not_taken(Cpu::bcc, &mut cpu);
     }
 
     #[test]
     fn bcc_branches_when_carry_is_clear_same_page() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         set(&mut cpu.status, CARRY, false);
-
-        let operand = Operand::Address {
-            address: 0x1010,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcc(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1010);
-        assert_eq!(extra_cycles, 1);
+        assert_branch_taken(Cpu::bcc, &mut cpu, 0x1010, 1);
     }
 
     #[test]
     fn bcc_branch_taken_adds_two_cycles_when_page_crossed() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x10F0;
         set(&mut cpu.status, CARRY, false);
-
-        let operand = Operand::Address {
-            address: 0x1105,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcc(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1105);
-        assert_eq!(extra_cycles, 2);
+        assert_branch_taken(Cpu::bcc, &mut cpu, 0x1105, 2);
     }
 
     #[test]
     fn bcs_does_not_branch_when_carry_clear() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
-        cpu.pc = 0x1000;
         set(&mut cpu.status, CARRY, false);
-
-        let operand = Operand::Address {
-            address: 0x2000,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcs(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1000);
-        assert_eq!(extra_cycles, 0);
+        assert_branch_not_taken(Cpu::bcs, &mut cpu);
     }
 
     #[test]
     fn bcs_branches_when_carry_set_same_page() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         set(&mut cpu.status, CARRY, true);
-
-        let operand = Operand::Address {
-            address: 0x1010,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcs(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1010);
-        assert_eq!(extra_cycles, 1);
+        assert_branch_taken(Cpu::bcs, &mut cpu, 0x1010, 1);
     }
 
     #[test]
     fn bcs_branches_across_page_boundary() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x10F0;
         set(&mut cpu.status, CARRY, true);
-
-        let operand = Operand::Address {
-            address: 0x1105,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcs(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1105);
-        assert_eq!(extra_cycles, 2);
+        assert_branch_taken(Cpu::bcs, &mut cpu, 0x1105, 2);
     }
 
     #[test]
     fn beq_does_not_branch_when_zero_clear() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
-        cpu.pc = 0x1000;
         set(&mut cpu.status, ZERO, false);
-
-        let operand = Operand::Address {
-            address: 0x2000,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcs(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1000);
-        assert_eq!(extra_cycles, 0);
+        assert_branch_not_taken(Cpu::beq, &mut cpu);
     }
 
     #[test]
     fn beq_branches_when_zero_set_same_page() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
-        set(&mut cpu.status, CARRY, true);
-
-        let operand = Operand::Address {
-            address: 0x1010,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcs(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1010);
-        assert_eq!(extra_cycles, 1);
+        set(&mut cpu.status, ZERO, true);
+        assert_branch_taken(Cpu::beq, &mut cpu, 0x1010, 1);
     }
 
     #[test]
     fn beq_branches_across_page_boundary() {
-        let mut bus = Bus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x10F0;
-        set(&mut cpu.status, CARRY, true);
-
-        let operand = Operand::Address {
-            address: 0x1105,
-            page_crossed: false,
-        };
-        let extra_cycles = cpu.bcs(operand, &mut bus);
-
-        assert_eq!(cpu.pc, 0x1105);
-        assert_eq!(extra_cycles, 2);
+        set(&mut cpu.status, ZERO, true);
+        assert_branch_taken(Cpu::beq, &mut cpu, 0x1105, 2);
     }
 
     #[test]
@@ -659,5 +634,74 @@ mod tests {
         cpu.bit(operand_at(0x0000), &mut bus);
 
         assert_eq!(cpu.a, 0x55);
+    }
+
+    #[test]
+    fn bmi_does_not_branch_when_negative_clear() {
+        let mut cpu = Cpu::new();
+        set(&mut cpu.status, NEGATIVE, false);
+        assert_branch_not_taken(Cpu::bmi, &mut cpu);
+    }
+
+    #[test]
+    fn bmi_branches_when_negative_set_same_page() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, NEGATIVE, true);
+        assert_branch_taken(Cpu::bmi, &mut cpu, 0x1010, 1);
+    }
+
+    #[test]
+    fn bmi_branches_across_page_boundary() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, NEGATIVE, true);
+        assert_branch_taken(Cpu::bmi, &mut cpu, 0x1105, 2);
+    }
+
+    #[test]
+    fn bne_branches_when_zero_clear() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, ZERO, false);
+        assert_branch_taken(Cpu::bne, &mut cpu, 0x1010, 1);
+    }
+
+    #[test]
+    fn bne_does_not_branch_when_zero_is_set() {
+        let mut cpu = Cpu::new();
+        set(&mut cpu.status, ZERO, true);
+        assert_branch_not_taken(Cpu::bne, &mut cpu);
+    }
+
+    #[test]
+    fn bne_branches_across_page_boundary() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, ZERO, false);
+        assert_branch_taken(Cpu::bne, &mut cpu, 0x1105, 2);
+    }
+
+    #[test]
+    fn bpl_branches_when_negative_clear() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, NEGATIVE, false);
+        assert_branch_taken(Cpu::bpl, &mut cpu, 0x1010, 1);
+    }
+
+    #[test]
+    fn bpl_does_not_branch_when_negative_is_set() {
+        let mut cpu = Cpu::new();
+        set(&mut cpu.status, NEGATIVE, true);
+        assert_branch_not_taken(Cpu::bpl, &mut cpu);
+    }
+
+    #[test]
+    fn bpl_branches_across_page_boundary() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, NEGATIVE, false);
+        assert_branch_taken(Cpu::bpl, &mut cpu, 0x1105, 2);
     }
 }

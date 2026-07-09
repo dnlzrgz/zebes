@@ -72,6 +72,15 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x24] = op!(BIT, ZeroPage, 3);
     table[0x2C] = op!(BIT, Absolute, 4);
 
+    // BMI - Branch if Minus
+    table[0x30] = op!(BMI, Relative, 2);
+
+    // BNE — Branch if Not Equal
+    table[0xD0] = op!(BNE, Relative, 2);
+
+    // BPL — Branch if Plus
+    table[0x10] = op!(BPL, Relative, 2);
+
     table
 }
 
