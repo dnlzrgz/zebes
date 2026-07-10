@@ -122,6 +122,18 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0xC4] = op!(CPY, ZeroPage, 3);
     table[0xCC] = op!(CPY, Absolute, 4);
 
+    // DEC — Decrement Memory
+    table[0xC6] = op!(DEC, ZeroPage, 5);
+    table[0xD6] = op!(DEC, ZeroPageX, 6);
+    table[0xCE] = op!(DEC, Absolute, 6);
+    table[0xDE] = op!(DEC, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
+
+    // // DEX — Decrement X
+    table[0xCA] = op!(DEX, Implied, 2);
+
+    // DEY — Decrement Y
+    table[0x88] = op!(DEY, Implied, 2);
+
     table
 }
 

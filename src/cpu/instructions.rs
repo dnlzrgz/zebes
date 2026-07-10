@@ -462,6 +462,48 @@ impl Cpu {
 
         page_crossed as u8
     }
+
+    /// Decrement Memory
+    /// memory = memory - 1
+    ///
+    /// DEC subtracts 1 from a memory location. Notably, there is no version of this instruction for
+    /// the accumulator; ADC or SBC must be used, instead.
+    /// This is a read-modify-write instruction, meaning that it first writes the original value
+    /// back to memory before the modified value. This extra write can matter if targeting hardware
+    /// register.
+    /// Note that decrement does not affect carry nor overflow.
+    pub fn dec(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        let value = bus.read(address);
+
+        let result = value.wrapping_sub(1);
+        bus.write(address, result);
+        self.update_zn(result);
+
+        0
+    }
+
+    /// Decrement X
+    /// X = X - 1
+    ///
+    /// DEX subtracts 1 from the X register. Note that it does not affect carry nor overflow.
+    pub fn dex(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        self.x = self.x.wrapping_sub(1);
+        self.update_zn(self.x);
+
+        0
+    }
+
+    /// Decrement Y
+    /// Y = Y - 1
+    ///
+    /// DEY subtracts 1 from the Y register. Note that it does not affect carry nor overflow.
+    pub fn dey(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        self.y = self.y.wrapping_sub(1);
+        self.update_zn(self.y);
+
+        0
+    }
 }
 
 #[cfg(test)]
@@ -1218,5 +1260,129 @@ mod tests {
         let extra_cycles = cpu.cpx(operand, &mut bus);
 
         assert_eq!(extra_cycles, 1);
+    }
+
+    #[test]
+    fn dec_subtracts_one_from_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0x10);
+
+        let extra_cycles = cpu.dec(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x0F);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn dec_wraps_from_zero_to_0xff() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0x00);
+
+        cpu.dec(operand_at(0x0000), &mut bus);
+
+        // Decrementing 0x00 must wrap to 0xFF.
+        assert_eq!(bus.peek(0x0000), 0xFF);
+        assert!(contains(cpu.status, NEGATIVE)); // 0xFF has bit 7 set
+        assert!(!contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn dec_sets_zero_when_result_is_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0x01);
+
+        cpu.dec(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x00);
+        assert!(contains(cpu.status, ZERO));
+        assert!(!contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn dec_sets_negative_when_result_high_bit_set() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0x00); // will wrap to 0xFF, bit 7 set
+
+        cpu.dec(operand_at(0x0000), &mut bus);
+
+        assert!(contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn dex_subtracts_one_from_x() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.x = 0x10;
+
+        let extra_cycles = cpu.dex(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.x, 0x0F);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn dex_wraps_from_zero_to_0xff() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.x = 0x00;
+
+        cpu.dex(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.x, 0xFF);
+        assert!(contains(cpu.status, NEGATIVE));
+        assert!(!contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn dex_sets_zero_when_result_is_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.x = 0x01;
+
+        cpu.dex(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.x, 0x00);
+        assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn dey_subtracts_one_from_y() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.y = 0x10;
+
+        let extra_cycles = cpu.dey(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.y, 0x0F);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn dey_wraps_from_zero_to_0xff() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.y = 0x00;
+
+        cpu.dey(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.y, 0xFF);
+        assert!(contains(cpu.status, NEGATIVE));
+        assert!(!contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn dey_sets_zero_when_result_is_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.y = 0x01;
+
+        cpu.dey(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.y, 0x00);
+        assert!(contains(cpu.status, ZERO));
     }
 }
