@@ -428,7 +428,7 @@ impl Cpu {
     /// Compare X
     /// X - memory
     ///
-    /// CMP compares X to a memory value, setting flags as appropriate but not modifying any
+    /// CPX compares X to a memory value, setting flags as appropriate but not modifying any
     /// registers. The comparison is implemented as a subtraction, setting carry if there is no
     /// borrow, zero if the result is 0, and negative if the result is negative. However, carry and
     /// zero are often most easily remembered as inequalities.
@@ -447,7 +447,7 @@ impl Cpu {
     /// Compare Y
     /// Y - memory
     ///
-    /// CMP compares Y to a memory value, setting flags as appropriate but not modifying any
+    /// CPY compares Y to a memory value, setting flags as appropriate but not modifying any
     /// registers. The comparison is implemented as a subtraction, setting carry if there is no
     /// borrow, zero if the result is 0, and negative if the result is negative. However, carry and
     /// zero are often most easily remembered as inequalities.
@@ -503,6 +503,26 @@ impl Cpu {
         self.update_zn(self.y);
 
         0
+    }
+
+    /// Bitwise Exclusive OR
+    /// A = A ^ memory
+    ///
+    /// EOR exclusive-ORs a memory value and the accumulator, bit by bit. If the input bits are
+    /// different, the resulting bit is 1. If they are the same, it is 0. This operation is also
+    /// known as XOR.
+    /// 6502 does not have a bitwise NOT instruction, but using EOR with value $FF has the same
+    /// behaviour, inverting every bit of the other value. In fact, EOR can be thought of as NOT
+    /// with a bitmask; all the 1 bits in one vlaue have the effect of inverting the corresponding
+    /// bit in the other value, while 0 bits do nothing.
+    pub fn eor(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, page_crossed) = operand.expect_address();
+        let value = bus.read(address);
+
+        self.a ^= value;
+        self.update_zn(self.a);
+
+        page_crossed as u8
     }
 }
 
@@ -1384,5 +1404,71 @@ mod tests {
 
         assert_eq!(cpu.y, 0x00);
         assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn eor_xors_accumulator_with_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b1100_1100;
+        bus.write(0x0000, 0b1010_1010);
+
+        let extra_cycles = cpu.eor(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0b0110_0110);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn eor_with_0xff_inverts_all_bits() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b1010_0101;
+        bus.write(0x0000, 0xFF);
+
+        cpu.eor(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0b0101_1010);
+    }
+
+    #[test]
+    fn eor_sets_zero_when_operands_are_identical() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x77;
+        bus.write(0x0000, 0x77);
+
+        cpu.eor(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0x00);
+        assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn eor_sets_negative_when_result_high_bit_set() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x00;
+        bus.write(0x0000, 0x80);
+
+        cpu.eor(operand_at(0x0000), &mut bus);
+
+        assert!(contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn eor_returns_one_extra_cycle_when_page_crossed() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x0F;
+        bus.write(0x0000, 0xF0);
+
+        let operand = Operand::Address {
+            address: 0x0000,
+            page_crossed: true,
+        };
+        let extra_cycles = cpu.eor(operand, &mut bus);
+
+        assert_eq!(extra_cycles, 1);
     }
 }

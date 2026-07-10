@@ -134,6 +134,16 @@ fn build_opcode_table() -> [Opcode; 256] {
     // DEY — Decrement Y
     table[0x88] = op!(DEY, Implied, 2);
 
+    // EOR — Bitwise Exclusive OR
+    table[0x49] = op!(EOR, Immediate, 2);
+    table[0x45] = op!(EOR, ZeroPage, 3);
+    table[0x55] = op!(EOR, ZeroPageX, 4);
+    table[0x4D] = op!(EOR, Absolute, 4);
+    table[0x5D] = op!(EOR, AbsoluteX, 4); // +1 if page crossed
+    table[0x59] = op!(EOR, AbsoluteY, 4); // +1 if page crossed
+    table[0x41] = op!(EOR, IndirectX, 6);
+    table[0x51] = op!(EOR, IndirectY, 5); // +1 if page crossed
+
     table
 }
 

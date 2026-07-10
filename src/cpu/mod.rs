@@ -109,6 +109,7 @@ impl Cpu {
             Instruction::DEC => self.dec(operand, bus),
             Instruction::DEX => self.dex(operand, bus),
             Instruction::DEY => self.dey(operand, bus),
+            Instruction::EOR => self.eor(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 
