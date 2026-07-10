@@ -524,6 +524,48 @@ impl Cpu {
 
         page_crossed as u8
     }
+
+    /// Increment Memory
+    /// memory = memory + 1
+    ///
+    /// INC adds 1 to a memory location. Notably, there is no version of this instruction for the
+    /// accumulator; ADC or SBC must be used, instead.
+    /// This is a read-modify-write instruction, meaning that it first writes the original value
+    /// back to memory before the modified value. This extra write han matter if targeting a
+    /// hardware register.
+    /// Note that increment does not affect carry nor overflow.
+    pub fn inc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        let value = bus.read(address);
+
+        let result = value.wrapping_add(1);
+        bus.write(address, result);
+        self.update_zn(result);
+
+        0
+    }
+
+    /// Increment X
+    /// X = X + 1
+    ///
+    /// INX adds 1 from the X register. Note that it does not affect carry nor overflow.
+    pub fn inx(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        self.x = self.x.wrapping_add(1);
+        self.update_zn(self.x);
+
+        0
+    }
+
+    /// Increment Y
+    /// Y = Y + 1
+    ///
+    /// INY adds 1 from the Y register. Note that it does not affect carry nor overflow.
+    pub fn iny(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        self.y = self.y.wrapping_add(1);
+        self.update_zn(self.y);
+
+        0
+    }
 }
 
 #[cfg(test)]
@@ -1470,5 +1512,78 @@ mod tests {
         let extra_cycles = cpu.eor(operand, &mut bus);
 
         assert_eq!(extra_cycles, 1);
+    }
+
+    #[test]
+    fn inc_adds_one_to_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0x10);
+
+        let extra_cycles = cpu.inc(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x11);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn inc_wraps_from_0xff_to_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        bus.write(0x0000, 0xFF);
+
+        cpu.inc(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x00);
+        assert!(contains(cpu.status, ZERO));
+        assert!(!contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn inx_adds_one_to_x() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.x = 0x10;
+
+        let extra_cycles = cpu.inx(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.x, 0x11);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn inx_wraps_from_0xff_to_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.x = 0xFF;
+
+        cpu.inx(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.x, 0x00);
+        assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn iny_adds_one_to_y() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.y = 0x10;
+
+        let extra_cycles = cpu.iny(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.y, 0x11);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn iny_wraps_from_0xff_to_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.y = 0xFF;
+
+        cpu.iny(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.y, 0x00);
+        assert!(contains(cpu.status, ZERO));
     }
 }

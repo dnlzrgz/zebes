@@ -144,6 +144,18 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x41] = op!(EOR, IndirectX, 6);
     table[0x51] = op!(EOR, IndirectY, 5); // +1 if page crossed
 
+    // INC — Increment Memory
+    table[0xE6] = op!(INC, ZeroPage, 5);
+    table[0xF6] = op!(INC, ZeroPageX, 6);
+    table[0xEE] = op!(INC, Absolute, 6);
+    table[0xFE] = op!(INC, AbsoluteX, 7); // RMW: always max cycles
+
+    // INX — Increment X
+    table[0xE8] = op!(INX, Implied, 2);
+
+    // INY — Increment Y
+    table[0xC8] = op!(INY, Implied, 2);
+
     table
 }
 
