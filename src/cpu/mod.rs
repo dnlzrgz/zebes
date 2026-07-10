@@ -103,6 +103,9 @@ impl Cpu {
             Instruction::CLD => self.cld(operand, bus),
             Instruction::CLI => self.cli(operand, bus),
             Instruction::CLV => self.clv(operand, bus),
+            Instruction::CMP => self.cmp(operand, bus),
+            Instruction::CPX => self.cpx(operand, bus),
+            Instruction::CPY => self.cpy(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

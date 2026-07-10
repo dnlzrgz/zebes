@@ -102,6 +102,26 @@ fn build_opcode_table() -> [Opcode; 256] {
     // CLV — Clear Overflow Flag
     table[0xB8] = op!(CLV, Implied, 2);
 
+    // CMP — Compare Accumulator
+    table[0xC9] = op!(CMP, Immediate, 2);
+    table[0xC5] = op!(CMP, ZeroPage, 3);
+    table[0xD5] = op!(CMP, ZeroPageX, 4);
+    table[0xCD] = op!(CMP, Absolute, 4);
+    table[0xDD] = op!(CMP, AbsoluteX, 4); // +1 if page crossed
+    table[0xD9] = op!(CMP, AbsoluteY, 4); // +1 if page crossed
+    table[0xC1] = op!(CMP, IndirectX, 6);
+    table[0xD1] = op!(CMP, IndirectY, 5); // +1 if page crossed
+
+    // CPX — Compare X Register
+    table[0xE0] = op!(CPX, Immediate, 2);
+    table[0xE4] = op!(CPX, ZeroPage, 3);
+    table[0xEC] = op!(CPX, Absolute, 4);
+
+    // CPY — Compare Y Register
+    table[0xC0] = op!(CPY, Immediate, 2);
+    table[0xC4] = op!(CPY, ZeroPage, 3);
+    table[0xCC] = op!(CPY, Absolute, 4);
+
     table
 }
 
