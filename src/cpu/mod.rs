@@ -113,6 +113,7 @@ impl Cpu {
             Instruction::INC => self.inc(operand, bus),
             Instruction::INX => self.inx(operand, bus),
             Instruction::INY => self.iny(operand, bus),
+            Instruction::JMP => self.jmp(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

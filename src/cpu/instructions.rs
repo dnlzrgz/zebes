@@ -566,6 +566,23 @@ impl Cpu {
 
         0
     }
+
+    /// Jump
+    /// PC = memory
+    ///
+    /// JMP sets the program counter to a new value, allowing code to execute from a new location.
+    /// If we wish to be able to return from that location, JSR should normally be used instead.
+    /// The indirect addressing modes uses the operand as a poointer, getting the new 2-byte program
+    /// counter value from the specified address. Unfortunately, because of a CPU bug, if this
+    /// 2-byte variable has an address ending in $FF and thus crossed a page, then the CPU fails to
+    /// increment the page when reading the second byte and thus reads the wrong address. For
+    /// example, JMP ($03FF) read $03FF and $0300 instead of $0400. Care should be taken to ensure
+    /// this variable does not cross a page.
+    pub fn jmp(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        self.pc = address;
+        0
+    }
 }
 
 #[cfg(test)]
@@ -1585,5 +1602,17 @@ mod tests {
 
         assert_eq!(cpu.y, 0x00);
         assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn jmp_sets_pc_to_operand_address() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+
+        let extra_cycles = cpu.jmp(operand_at(0x8000), &mut bus);
+
+        assert_eq!(cpu.pc, 0x8000);
+        assert_eq!(extra_cycles, 0);
     }
 }
