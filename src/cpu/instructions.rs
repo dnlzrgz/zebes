@@ -583,6 +583,30 @@ impl Cpu {
         self.pc = address;
         0
     }
+
+    /// Jump to Subroutine
+    /// `push` PC + 2 high byte to stack
+    /// `push` PC + 2 low byte to stack
+    /// PC = memory
+    ///
+    /// JSR pushes the current program counter to the stack and then sets the program counter to a
+    /// new value. This allows code to call a function and return with RTS back to the instruction
+    /// after the JSR.
+    /// Notably, the return address on the stack point 1 byte before the start of the next
+    /// instruction, rather than directly at the instruction. This is because RTS increments the
+    /// program counter before the next instruction is fetched. This differs from the return address
+    /// pushed by interrupts and used by RTI, which points directly to the next instruction.
+    pub fn jsr(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        self.pc = self.pc.wrapping_sub(1);
+
+        self.push_byte(bus, (self.pc >> 8) as u8); // high byte
+        self.push_byte(bus, (self.pc & 0x00FF) as u8); // low byte
+
+        let (address, _) = operand.expect_address();
+        self.pc = address;
+
+        0
+    }
 }
 
 #[cfg(test)]
@@ -1613,6 +1637,34 @@ mod tests {
         let extra_cycles = cpu.jmp(operand_at(0x8000), &mut bus);
 
         assert_eq!(cpu.pc, 0x8000);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn jsr_pushes_return_address_minus_one_and_jumps() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1234;
+        cpu.sp = 0xFD;
+
+        let extra_cycles = cpu.jsr(operand_at(0x8000), &mut bus);
+
+        // the pushed address should be pc - 1.
+        let expected_pushed_addr: u16 = 0x1233;
+
+        assert_eq!(
+            bus.peek(0x01FD),
+            (expected_pushed_addr >> 8) as u8,
+            "high byte"
+        );
+        assert_eq!(
+            bus.peek(0x01FC),
+            (expected_pushed_addr & 0x00FF) as u8,
+            "low byte"
+        );
+        assert_eq!(cpu.sp, 0xFB, "sp must decrement by 2 (two pushes)");
+
+        assert_eq!(cpu.pc, 0x8000, "pc must jump to the subroutine address");
         assert_eq!(extra_cycles, 0);
     }
 }

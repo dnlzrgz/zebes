@@ -12,22 +12,16 @@ use crate::{
 pub struct Cpu {
     /// Accumulator register.
     a: u8,
-
     /// X register.
     x: u8,
-
     /// Y register.
     y: u8,
-
     /// Program counter.
     pc: u16,
-
     /// Stack pointer (points to location on bus).
     sp: u8,
-
     /// Status register.
     status: u8,
-
     /// Number of clock cycles remaining for the current instruction
     /// that is being executed.
     cycles: u8,
@@ -114,6 +108,7 @@ impl Cpu {
             Instruction::INX => self.inx(operand, bus),
             Instruction::INY => self.iny(operand, bus),
             Instruction::JMP => self.jmp(operand, bus),
+            Instruction::JSR => self.jsr(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

@@ -160,6 +160,9 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x4C] = op!(JMP, Absolute, 3);
     table[0x6C] = op!(JMP, Indirect, 5);
 
+    // JSR — Jump to Subroutine
+    table[0x20] = op!(JSR, Absolute, 6);
+
     table
 }
 
