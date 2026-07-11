@@ -112,6 +112,7 @@ impl Cpu {
             Instruction::LDA => self.lda(operand, bus),
             Instruction::LDX => self.ldx(operand, bus),
             Instruction::LDY => self.ldy(operand, bus),
+            Instruction::LSR => self.lsr(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

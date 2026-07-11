@@ -187,6 +187,13 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0xAC] = op!(LDY, Absolute, 4);
     table[0xBC] = op!(LDY, AbsoluteX, 4); // +1 if page crossed
 
+    // LSR — Logical Shift Right
+    table[0x4A] = op!(LSR, Accumulator, 2);
+    table[0x46] = op!(LSR, ZeroPage, 5);
+    table[0x56] = op!(LSR, ZeroPageX, 6);
+    table[0x4E] = op!(LSR, Absolute, 6);
+    table[0x5E] = op!(LSR, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
+
     table
 }
 
