@@ -163,6 +163,30 @@ fn build_opcode_table() -> [Opcode; 256] {
     // JSR — Jump to Subroutine
     table[0x20] = op!(JSR, Absolute, 6);
 
+    // LDA — Load A
+    table[0xA9] = op!(LDA, Immediate, 2);
+    table[0xA5] = op!(LDA, ZeroPage, 3);
+    table[0xB5] = op!(LDA, ZeroPageX, 4);
+    table[0xAD] = op!(LDA, Absolute, 4);
+    table[0xBD] = op!(LDA, AbsoluteX, 4); // +1 if page crossed
+    table[0xB9] = op!(LDA, AbsoluteY, 4); // +1 if page crossed
+    table[0xA1] = op!(LDA, IndirectX, 6);
+    table[0xB1] = op!(LDA, IndirectY, 5); // +1 if page crossed
+
+    // LDX — Load X
+    table[0xA2] = op!(LDX, Immediate, 2);
+    table[0xA6] = op!(LDX, ZeroPage, 3);
+    table[0xB6] = op!(LDX, ZeroPageY, 4);
+    table[0xAE] = op!(LDX, Absolute, 4);
+    table[0xBE] = op!(LDX, AbsoluteY, 4); // +1 if page crossed
+
+    // LDY — Load Y
+    table[0xA0] = op!(LDY, Immediate, 2);
+    table[0xA4] = op!(LDY, ZeroPage, 3);
+    table[0xB4] = op!(LDY, ZeroPageX, 4);
+    table[0xAC] = op!(LDY, Absolute, 4);
+    table[0xBC] = op!(LDY, AbsoluteX, 4); // +1 if page crossed
+
     table
 }
 
