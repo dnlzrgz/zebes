@@ -194,6 +194,9 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x4E] = op!(LSR, Absolute, 6);
     table[0x5E] = op!(LSR, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
 
+    // NOP — No Operation
+    table[0xEA] = op!(NOP, Implied, 2);
+
     table
 }
 
