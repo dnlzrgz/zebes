@@ -197,6 +197,16 @@ fn build_opcode_table() -> [Opcode; 256] {
     // NOP — No Operation
     table[0xEA] = op!(NOP, Implied, 2);
 
+    // ORA — Bitwise OR
+    table[0x09] = op!(ORA, Immediate, 2);
+    table[0x05] = op!(ORA, ZeroPage, 3);
+    table[0x15] = op!(ORA, ZeroPageX, 4);
+    table[0x0D] = op!(ORA, Absolute, 4);
+    table[0x1D] = op!(ORA, AbsoluteX, 4); // +1 if page crossed
+    table[0x19] = op!(ORA, AbsoluteY, 4); // +1 if page crossed
+    table[0x01] = op!(ORA, IndirectX, 6);
+    table[0x11] = op!(ORA, IndirectY, 5); // +1 if page crossed
+
     table
 }
 

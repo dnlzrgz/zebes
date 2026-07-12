@@ -63,6 +63,21 @@ impl Cpu {
 
         0
     }
+
+    /// Bitwise OR
+    /// A = A | memory
+    ///
+    /// ORA inclusive-ORs a memory value and the accumulator, bit by bit. If either input bit is 1,
+    /// the resulting bit is 1. Otherwise, it is 0.
+    pub fn ora(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, page_crossed) = operand.expect_address();
+        let value = bus.read(address);
+
+        self.a |= value;
+        self.update_zn(self.a);
+
+        page_crossed as u8
+    }
 }
 
 #[cfg(test)]
@@ -244,5 +259,59 @@ mod tests {
         cpu.bit(operand_at(0x0000), &mut bus);
 
         assert_eq!(cpu.a, 0x55);
+    }
+
+    #[test]
+    fn ora_ors_accumulator_with_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0b1100_0000;
+        bus.write(0x0000, 0b0000_1100);
+
+        let extra_cycles = cpu.ora(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0b1100_1100);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn ora_sets_zero_when_both_operands_are_zero() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x00;
+        bus.write(0x0000, 0x00);
+
+        cpu.ora(operand_at(0x0000), &mut bus);
+
+        assert_eq!(cpu.a, 0x00);
+        assert!(contains(cpu.status, ZERO));
+    }
+
+    #[test]
+    fn ora_sets_negative_when_result_high_bit_set() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x00;
+        bus.write(0x0000, 0x80);
+
+        cpu.ora(operand_at(0x0000), &mut bus);
+
+        assert!(contains(cpu.status, NEGATIVE));
+    }
+
+    #[test]
+    fn ora_returns_one_extra_cycle_when_page_crossed() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x0F;
+        bus.write(0x0000, 0xF0);
+
+        let operand = Operand::Address {
+            address: 0x0000,
+            page_crossed: true,
+        };
+        let extra_cycles = cpu.ora(operand, &mut bus);
+
+        assert_eq!(extra_cycles, 1);
     }
 }
