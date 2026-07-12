@@ -74,6 +74,11 @@ impl Cpu {
         self.sp = self.sp.wrapping_sub(1);
     }
 
+    fn pull_byte(&mut self, bus: &mut Bus) -> u8 {
+        self.sp = self.sp.wrapping_add(1);
+        bus.read(0x0100 + self.sp as u16)
+    }
+
     fn execute(&mut self, opcode: u8, bus: &mut Bus) -> u8 {
         let info = opcode_table()[opcode as usize];
         let operand = self.resolve_address(info.mode, bus);
@@ -117,6 +122,8 @@ impl Cpu {
             Instruction::ORA => self.ora(operand, bus),
             Instruction::PHA => self.pha(operand, bus),
             Instruction::PHP => self.php(operand, bus),
+            Instruction::PLA => self.pla(operand, bus),
+            Instruction::PLP => self.plp(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

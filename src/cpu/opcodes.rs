@@ -213,6 +213,12 @@ fn build_opcode_table() -> [Opcode; 256] {
     // PHP — Push Processor Status
     table[0x08] = op!(PHP, Implied, 3);
 
+    // PLA — Pull A
+    table[0x68] = op!(PLA, Implied, 4);
+
+    // PLP — Pull Processor Status
+    table[0x28] = op!(PLP, Implied, 4);
+
     table
 }
 
