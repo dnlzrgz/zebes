@@ -115,6 +115,8 @@ impl Cpu {
             Instruction::LSR => self.lsr(operand, bus),
             Instruction::NOP => self.nop(operand, bus),
             Instruction::ORA => self.ora(operand, bus),
+            Instruction::PHA => self.pha(operand, bus),
+            Instruction::PHP => self.php(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

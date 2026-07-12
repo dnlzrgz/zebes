@@ -207,6 +207,12 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x01] = op!(ORA, IndirectX, 6);
     table[0x11] = op!(ORA, IndirectY, 5); // +1 if page crossed
 
+    // PHA — Push Accumulator
+    table[0x48] = op!(PHA, Implied, 3);
+
+    // PHP — Push Processor Status
+    table[0x08] = op!(PHP, Implied, 3);
+
     table
 }
 
