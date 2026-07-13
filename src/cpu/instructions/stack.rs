@@ -53,6 +53,25 @@ impl Cpu {
         self.status = (pulled & !BREAK) | UNUSED;
         0
     }
+
+    /// Transfer Stack Pointer to X
+    /// X = SP
+    ///
+    /// TSX copies the stack pointer value to the X register.
+    pub fn tsx(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+        self.x = self.sp;
+        self.update_zn(self.x);
+        0
+    }
+
+    /// Transfer X to Stack Pointer
+    /// SP = X
+    ///
+    /// TXS copies the X register value to the stack pointer.
+    pub fn txs(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+        self.sp = self.x;
+        0
+    }
 }
 
 #[cfg(test)]

@@ -139,6 +139,8 @@ impl Cpu {
             Instruction::TAY => self.tay(operand, bus),
             Instruction::TXA => self.txa(operand, bus),
             Instruction::TYA => self.tya(operand, bus),
+            Instruction::TSX => self.tsx(operand, bus),
+            Instruction::TXS => self.txs(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

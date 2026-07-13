@@ -289,6 +289,12 @@ fn build_opcode_table() -> [Opcode; 256] {
     // TYA — Transfer Y to A
     table[0x98] = op!(TYA, Implied, 2);
 
+    // TSX — Transfer Stack Pointer to X
+    table[0xBA] = op!(TSX, Implied, 2);
+
+    // TXS — Transfer X to Stack Pointer
+    table[0x9A] = op!(TXS, Implied, 2);
+
     table
 }
 
