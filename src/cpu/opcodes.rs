@@ -219,6 +219,20 @@ fn build_opcode_table() -> [Opcode; 256] {
     // PLP — Pull Processor Status
     table[0x28] = op!(PLP, Implied, 4);
 
+    // ROL — Rotate Left
+    table[0x2A] = op!(ROL, Accumulator, 2);
+    table[0x26] = op!(ROL, ZeroPage, 5);
+    table[0x36] = op!(ROL, ZeroPageX, 6);
+    table[0x2E] = op!(ROL, Absolute, 6);
+    table[0x3E] = op!(ROL, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
+
+    // ROR — Rotate Right
+    table[0x6A] = op!(ROR, Accumulator, 2);
+    table[0x66] = op!(ROR, ZeroPage, 5);
+    table[0x76] = op!(ROR, ZeroPageX, 6);
+    table[0x6E] = op!(ROR, Absolute, 6);
+    table[0x7E] = op!(ROR, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
+
     table
 }
 

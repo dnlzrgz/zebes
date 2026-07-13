@@ -124,6 +124,8 @@ impl Cpu {
             Instruction::PHP => self.php(operand, bus),
             Instruction::PLA => self.pla(operand, bus),
             Instruction::PLP => self.plp(operand, bus),
+            Instruction::ROL => self.rol(operand, bus),
+            Instruction::ROR => self.ror(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 
