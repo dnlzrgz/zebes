@@ -7,7 +7,7 @@ impl Cpu {
     /// Load A
     /// A = memory
     ///
-    ///LDA loads a memory value into the accumulator.
+    /// LDA loads a memory value into the accumulator.
     pub fn lda(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         self.a = bus.read(address);
@@ -19,7 +19,7 @@ impl Cpu {
     /// Load X
     /// X = memory
     ///
-    ///LDX loads a memory value into the X register.
+    /// LDX loads a memory value into the X register.
     pub fn ldx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         self.x = bus.read(address);
@@ -31,13 +31,43 @@ impl Cpu {
     /// Load Y
     /// Y = memory
     ///
-    ///LDY loads a memory value into the Y register.
+    /// LDY loads a memory value into the Y register.
     pub fn ldy(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         self.y = bus.read(address);
         self.update_zn(self.y);
 
         page_crossed as u8
+    }
+
+    /// Store A
+    /// memory = A
+    ///
+    /// STA stores the accumulator value into memory.
+    pub fn sta(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        bus.write(address, self.a);
+        0
+    }
+
+    /// Store X
+    /// memory = X
+    ///
+    /// STX stores the X register value into memory.
+    pub fn stx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        bus.write(address, self.x);
+        0
+    }
+
+    /// Store Y
+    /// memory = Y
+    ///
+    /// STY stores the Y register value into memory.
+    pub fn sty(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        bus.write(address, self.y);
+        0
     }
 }
 

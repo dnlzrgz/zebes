@@ -58,7 +58,7 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x16] = op!(ASL, ZeroPageX, 6);
     table[0x0E] = op!(ASL, Absolute, 6);
     table[0x1E] = op!(ASL, AbsoluteX, 7); // RMW instructions always take the max cycles, no page-crossing check
-    //
+
     // BCC — Branch if Carry Clear
     table[0x90] = op!(BCC, Relative, 2);
 
@@ -128,7 +128,7 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0xCE] = op!(DEC, Absolute, 6);
     table[0xDE] = op!(DEC, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
 
-    // // DEX — Decrement X
+    // DEX — Decrement X
     table[0xCA] = op!(DEX, Implied, 2);
 
     // DEY — Decrement Y
@@ -238,6 +238,44 @@ fn build_opcode_table() -> [Opcode; 256] {
 
     // RTS — Return from Subroutine
     table[0x60] = op!(RTS, Implied, 6);
+
+    // SBC - Subtract with Carry
+    table[0xE9] = op!(SBC, Immediate, 2);
+    table[0xE5] = op!(SBC, ZeroPage, 3);
+    table[0xF5] = op!(SBC, ZeroPageX, 4);
+    table[0xED] = op!(SBC, Absolute, 4);
+    table[0xFD] = op!(SBC, AbsoluteX, 4); // +1 if page crossed
+    table[0xF9] = op!(SBC, AbsoluteY, 4); // +1 if page crossed
+    table[0xE1] = op!(SBC, IndirectX, 6);
+    table[0xF1] = op!(SBC, IndirectY, 5); // +1 if page crossed
+
+    // SEC — Set Carry Flag
+    table[0x38] = op!(SEC, Implied, 2);
+
+    // SED — Set Decimal Flag
+    table[0xF8] = op!(SED, Implied, 2);
+
+    // SEI — Set Interrupt Disable Flag
+    table[0x78] = op!(SEI, Implied, 2);
+
+    // STA — Store Accumulator
+    table[0x85] = op!(STA, ZeroPage, 3);
+    table[0x95] = op!(STA, ZeroPageX, 4);
+    table[0x8D] = op!(STA, Absolute, 4);
+    table[0x9D] = op!(STA, AbsoluteX, 5);
+    table[0x99] = op!(STA, AbsoluteY, 5);
+    table[0x81] = op!(STA, IndirectX, 6);
+    table[0x91] = op!(STA, IndirectY, 6);
+
+    // STX — Store X Register
+    table[0x86] = op!(STX, ZeroPage, 3);
+    table[0x96] = op!(STX, ZeroPageY, 4);
+    table[0x8E] = op!(STX, Absolute, 4);
+
+    // STY — Store Y Register
+    table[0x84] = op!(STY, ZeroPage, 3);
+    table[0x94] = op!(STY, ZeroPageX, 4);
+    table[0x8C] = op!(STY, Absolute, 4);
 
     table
 }

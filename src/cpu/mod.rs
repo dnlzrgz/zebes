@@ -128,6 +128,13 @@ impl Cpu {
             Instruction::ROR => self.ror(operand, bus),
             Instruction::RTI => self.rti(operand, bus),
             Instruction::RTS => self.rts(operand, bus),
+            Instruction::SBC => self.sbc(operand, bus),
+            Instruction::SEC => self.sec(operand, bus),
+            Instruction::SED => self.sed(operand, bus),
+            Instruction::SEI => self.sei(operand, bus),
+            Instruction::STA => self.sta(operand, bus),
+            Instruction::STX => self.stx(operand, bus),
+            Instruction::STY => self.sty(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 
