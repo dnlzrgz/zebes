@@ -277,6 +277,18 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x94] = op!(STY, ZeroPageX, 4);
     table[0x8C] = op!(STY, Absolute, 4);
 
+    // TAX — Transfer A to X
+    table[0xAA] = op!(TAX, Implied, 2);
+
+    // TAY — Transfer A to Y
+    table[0xA8] = op!(TAY, Implied, 2);
+
+    // TXA — Transfer X to A
+    table[0x8A] = op!(TXA, Implied, 2);
+
+    // TYA — Transfer Y to A
+    table[0x98] = op!(TYA, Implied, 2);
+
     table
 }
 
