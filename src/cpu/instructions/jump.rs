@@ -85,6 +85,45 @@ impl Cpu {
 
         0
     }
+
+    /// Return from Interrupt
+    /// `pull` NVxxDIZC flags from stack
+    /// `pull` PC low byte from stack
+    /// `pull` PC high byte from stack
+    ///
+    /// RTI returns from an interrupt handler, first pulling the 6 status flags from the stack and
+    /// then pulling the new program counter. The flag pulling behaves like PLP except that changes
+    /// to the interrupt disable flag apply immediately instead of being delayed 1 instruction. This
+    /// is because the flags change before IRQs are polled for the instruction, not after. The PC
+    /// pulling behaves like RTS except that the return address is the exact same address of the
+    /// next instruction instead of 1 byte before it.
+    pub fn rti(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+        let pulled = self.pull_byte(bus);
+        self.status = (pulled & !BREAK) | UNUSED;
+
+        let lo = self.pull_byte(bus);
+        let hi = self.pull_byte(bus);
+        self.pc = u16::from_le_bytes([lo, hi]);
+
+        0
+    }
+
+    /// Return from Subroutine
+    /// `pull` PC low byte from stack
+    /// `pull` PC high byte from stack
+    /// PC = PC + 1
+    ///
+    /// RTS pulls an address from the stack into the program counter and then increments it. It is
+    /// normally used at the end of a function to return to the instruction after the JSR that
+    /// called the function. However, RTS is also sometimes used to implement jump tables.
+    pub fn rts(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+        let lo = self.pull_byte(bus);
+        let hi = self.pull_byte(bus);
+        self.pc = u16::from_le_bytes([lo, hi]);
+        self.pc = self.pc.wrapping_add(1);
+
+        0
+    }
 }
 
 #[cfg(test)]
@@ -196,5 +235,141 @@ mod tests {
         assert_eq!(cpu.pc, 0x8000);
 
         assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn rti_restores_status_with_break_forced_low() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFA;
+        // Stack layout (bottom to top as pulled): status, pc-low, pc-high
+        bus.write(0x01FB, CARRY | BREAK); // status, as if pushed with BREAK set
+        bus.write(0x01FC, 0x00); // pc low byte
+        bus.write(0x01FD, 0x80); // pc high byte
+
+        let extra_cycles = cpu.rti(Operand::Accumulator, &mut bus);
+
+        assert!(
+            !contains(cpu.status, BREAK),
+            "BREAK must never persist on the live status register"
+        );
+        assert!(contains(cpu.status, CARRY));
+        assert!(contains(cpu.status, UNUSED));
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn rti_restores_pc_from_low_then_high_byte() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFA;
+        bus.write(0x01FB, 0x00); // status
+        bus.write(0x01FC, 0x34); // pc low byte
+        bus.write(0x01FD, 0x12); // pc high byte
+
+        cpu.rti(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1234);
+    }
+
+    #[test]
+    fn rti_advances_sp_by_exactly_three() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFA;
+        bus.write(0x01FB, 0x00);
+        bus.write(0x01FC, 0x00);
+        bus.write(0x01FD, 0x00);
+
+        cpu.rti(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.sp, 0xFD, "sp must advance by 3 (one pull per byte)");
+    }
+
+    #[test]
+    fn rti_mirrors_a_previous_brk() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+
+        cpu.pc = 0x1234;
+        cpu.sp = 0xFD;
+        set(&mut cpu.status, CARRY, true);
+        set(&mut cpu.status, NEGATIVE, true);
+        set(&mut cpu.status, INTERRUPT_DISABLE, false);
+        let status_before_brk = cpu.status;
+        let pc_after_brk_advance = cpu.pc.wrapping_add(1); // BRK's own pc+1 before pushing
+
+        // IRQ/BRK vector — brk() will jump here.
+        bus.write(0xFFFE, 0x00);
+        bus.write(0xFFFF, 0x90);
+
+        cpu.brk(Operand::Accumulator, &mut bus);
+        cpu.status = 0x00;
+        cpu.pc = 0x0000;
+
+        cpu.rti(Operand::Accumulator, &mut bus);
+
+        assert_eq!(
+            cpu.pc, pc_after_brk_advance,
+            "RTI must return to BRK's exact return address"
+        );
+        assert_eq!(
+            cpu.status, status_before_brk,
+            "RTI must restore the pre-BRK flags exactly"
+        );
+        assert_eq!(
+            cpu.sp, 0xFD,
+            "sp should return to its original value after a full brk+rti round trip"
+        );
+    }
+
+    #[test]
+    fn rts_restores_pc_from_low_then_high_byte_plus_one() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFB;
+        bus.write(0x01FC, 0x33); // pc low byte
+        bus.write(0x01FD, 0x12); // pc high byte
+
+        let extra_cycles = cpu.rts(Operand::Accumulator, &mut bus);
+
+        // Pulled address is 0x1233, then +1 gives 0x1234.
+        assert_eq!(cpu.pc, 0x1234);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn rts_advances_sp_by_exactly_two() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFB;
+        bus.write(0x01FC, 0x00);
+        bus.write(0x01FD, 0x00);
+
+        cpu.rts(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.sp, 0xFD, "sp must advance by 2 (one pull per byte)");
+    }
+
+    #[test]
+    fn rts_mirrors_a_previous_jsr() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1234; // already advanced past JSR's operand bytes
+        cpu.sp = 0xFD;
+
+        cpu.jsr(operand_at(0x8000), &mut bus);
+        assert_eq!(cpu.pc, 0x8000, "sanity check: jsr jumped to the subroutine");
+
+        cpu.rts(Operand::Accumulator, &mut bus);
+
+        assert_eq!(
+            cpu.pc, 0x1234,
+            "rts must return to exactly where jsr was called from"
+        );
+        assert_eq!(
+            cpu.sp, 0xFD,
+            "sp should return to its original value after a full jsr+rts round trip"
+        );
     }
 }

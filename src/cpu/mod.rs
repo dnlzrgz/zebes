@@ -126,6 +126,8 @@ impl Cpu {
             Instruction::PLP => self.plp(operand, bus),
             Instruction::ROL => self.rol(operand, bus),
             Instruction::ROR => self.ror(operand, bus),
+            Instruction::RTI => self.rti(operand, bus),
+            Instruction::RTS => self.rts(operand, bus),
             _ => todo!("instruction not yet implemented: {:?}", info.instruction),
         };
 

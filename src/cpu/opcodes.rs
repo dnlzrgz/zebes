@@ -233,6 +233,12 @@ fn build_opcode_table() -> [Opcode; 256] {
     table[0x6E] = op!(ROR, Absolute, 6);
     table[0x7E] = op!(ROR, AbsoluteX, 7); // RMW: always max cycles, no page-crossing check
 
+    // RTI — Return from Interrupt
+    table[0x40] = op!(RTI, Implied, 6);
+
+    // RTS — Return from Subroutine
+    table[0x60] = op!(RTS, Implied, 6);
+
     table
 }
 
