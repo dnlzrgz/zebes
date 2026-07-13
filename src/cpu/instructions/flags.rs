@@ -48,6 +48,39 @@ impl Cpu {
         set(&mut self.status, OVERFLOW, false);
         0
     }
+
+    /// Set Carry
+    /// C = 1
+    ///
+    /// SEC sets the carry flag. In particular, this is usually done before subtracting the low byte
+    /// of a value with SBC to avoid subtracting an extra 1.
+    pub fn sec(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        set(&mut self.status, CARRY, true);
+        0
+    }
+
+    /// Set Decimal
+    /// D = 1
+    ///
+    /// SED sets the decimal flag. The decimal flag normally controls whether binary-coded decimal
+    /// mode (BCD) is enabled, but this mode is permanently disabled on the NES' 2A03 CPU. However,
+    /// the flag itself still functions and can be used to store state.
+    pub fn sed(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        set(&mut self.status, DECIMAL, true);
+        0
+    }
+
+    /// Set Interrupt Disable
+    /// I = 1
+    ///
+    /// SEI sets the interrupt disable flag, preventing the CPU from handling hardware IRQs. The
+    /// effect of changing this flag is delayed one instruction because the flag is changed after
+    /// IRQ is polled, allowing an IRQ to be serviced between this and the next instruction if the
+    /// flag was previously 0.
+    pub fn sei(&mut self, _: Operand, _: &mut Bus) -> u8 {
+        set(&mut self.status, INTERRUPT_DISABLE, true);
+        0
+    }
 }
 
 #[cfg(test)]
