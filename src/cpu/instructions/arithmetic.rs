@@ -120,6 +120,39 @@ impl Cpu {
 
         0
     }
+
+    /// Subtract with Carry
+    /// A = A - memory - ~C || A = A + ~memory + C
+    ///
+    /// SBC subtracts a memory value and the NOT of the carry flag from the accumulator. It does
+    /// this by adding the bitwise NOT of the memory value using ADC. This implementation detail
+    /// explains the backward nature of carry; SBC subtracts 1 more when carry is clear, not
+    /// when it's set, and carry is cleared when it underflows and set otherwise. As with ADC, carry
+    /// allows the borrow from one subtraction to be carried into the next subtraction, allowing
+    /// subtraction of values larger than 1 byte. It is common to set carry with SEC before
+    /// subtracting the first byte to ensure it is a known state, avoiding an off-by-one error.
+    /// Overflow works the same as with ADC, except with an inverted memory value. Therefore,
+    /// overflow or underflow occur if result's sign is different from A's and the same as the
+    /// memory value's.
+    pub fn sbc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, page_crossed) = operand.expect_address();
+        let value = bus.read(address);
+        let inverted_value = value ^ 0xFF;
+
+        let carry_in = contains(self.status, CARRY) as u16;
+        let sum = self.a as u16 + inverted_value as u16 + carry_in;
+        let result = sum as u8;
+
+        set(&mut self.status, CARRY, sum > 0xFF);
+
+        let overflow = (!(self.a ^ inverted_value) & (self.a ^ result) & 0x80) != 0;
+        set(&mut self.status, OVERFLOW, overflow);
+
+        self.update_zn(result);
+        self.a = result;
+
+        page_crossed as u8
+    }
 }
 
 #[cfg(test)]
