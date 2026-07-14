@@ -45,6 +45,23 @@ impl Cpu {
         0
     }
 
+    /// Return from Subroutine
+    /// `pull` PC low byte from stack
+    /// `pull` PC high byte from stack
+    /// PC = PC + 1
+    ///
+    /// RTS pulls an address from the stack into the program counter and then increments it. It is
+    /// normally used at the end of a function to return to the instruction after the JSR that
+    /// called the function. However, RTS is also sometimes used to implement jump tables.
+    pub fn rts(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+        let lo = self.pull_byte(bus);
+        let hi = self.pull_byte(bus);
+        self.pc = u16::from_le_bytes([lo, hi]);
+        self.pc = self.pc.wrapping_add(1);
+
+        0
+    }
+
     /// Break (Software IRQ)
     /// `push` PC + 2 high byte to stack
     /// `push` PC + 2 low byte to stack
@@ -107,23 +124,6 @@ impl Cpu {
 
         0
     }
-
-    /// Return from Subroutine
-    /// `pull` PC low byte from stack
-    /// `pull` PC high byte from stack
-    /// PC = PC + 1
-    ///
-    /// RTS pulls an address from the stack into the program counter and then increments it. It is
-    /// normally used at the end of a function to return to the instruction after the JSR that
-    /// called the function. However, RTS is also sometimes used to implement jump tables.
-    pub fn rts(&mut self, _: Operand, bus: &mut Bus) -> u8 {
-        let lo = self.pull_byte(bus);
-        let hi = self.pull_byte(bus);
-        self.pc = u16::from_le_bytes([lo, hi]);
-        self.pc = self.pc.wrapping_add(1);
-
-        0
-    }
 }
 
 #[cfg(test)]
@@ -155,20 +155,56 @@ mod tests {
         // the pushed address should be pc - 1.
         let expected_pushed_addr: u16 = 0x1233;
 
-        assert_eq!(
-            bus.peek(0x01FD),
-            (expected_pushed_addr >> 8) as u8,
-            "high byte"
-        );
-        assert_eq!(
-            bus.peek(0x01FC),
-            (expected_pushed_addr & 0x00FF) as u8,
-            "low byte"
-        );
-        assert_eq!(cpu.sp, 0xFB, "sp must decrement by 2 (two pushes)");
+        assert_eq!(bus.peek(0x01FD), (expected_pushed_addr >> 8) as u8);
+        assert_eq!(bus.peek(0x01FC), (expected_pushed_addr & 0x00FF) as u8);
+        assert_eq!(cpu.sp, 0xFB);
 
-        assert_eq!(cpu.pc, 0x8000, "pc must jump to the subroutine address");
+        assert_eq!(cpu.pc, 0x8000);
         assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn rts_restores_pc_from_low_then_high_byte_plus_one() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFB;
+        bus.write(0x01FC, 0x33); // pc low byte
+        bus.write(0x01FD, 0x12); // pc high byte
+
+        let extra_cycles = cpu.rts(Operand::Accumulator, &mut bus);
+
+        // Pulled address is 0x1233, then +1 gives 0x1234.
+        assert_eq!(cpu.pc, 0x1234);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn rts_advances_sp_by_exactly_two() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.sp = 0xFB;
+        bus.write(0x01FC, 0x00);
+        bus.write(0x01FD, 0x00);
+
+        cpu.rts(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.sp, 0xFD);
+    }
+
+    #[test]
+    fn rts_mirrors_a_previous_jsr() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1234; // already advanced past JSR's operand bytes
+        cpu.sp = 0xFD;
+
+        cpu.jsr(operand_at(0x8000), &mut bus);
+        assert_eq!(cpu.pc, 0x8000);
+
+        cpu.rts(Operand::Accumulator, &mut bus);
+
+        assert_eq!(cpu.pc, 0x1234);
+        assert_eq!(cpu.sp, 0xFD);
     }
 
     #[test]
@@ -202,17 +238,9 @@ mod tests {
         //   push high byte at 0x0100 + 0xFD = 0x01FD, sp -> 0xFC
         //   push low byte  at 0x0100 + 0xFC = 0x01FC, sp -> 0xFB
         //   push status    at 0x0100 + 0xFB = 0x01FB, sp -> 0xFA
-        assert_eq!(
-            bus.peek(0x01FD),
-            (expected_return_addr >> 8) as u8,
-            "high byte of return address"
-        );
-        assert_eq!(
-            bus.peek(0x01FC),
-            (expected_return_addr & 0x00FF) as u8,
-            "low byte of return address"
-        );
-        assert_eq!(cpu.sp, 0xFA, "sp must decrement by exactly 3");
+        assert_eq!(bus.peek(0x01FD), (expected_return_addr >> 8) as u8);
+        assert_eq!(bus.peek(0x01FC), (expected_return_addr & 0x00FF) as u8);
+        assert_eq!(cpu.sp, 0xFA);
 
         // The pushed status byte must have BREAK and UNUSED forced high while preserving flags
         // already set.
@@ -220,16 +248,10 @@ mod tests {
         let expected_status = to_pushed_byte(status_before);
         assert_eq!(pushed_status, expected_status);
 
-        // BREAK is not a "real"" flag. self.status should not have BREAK set after brk() returns.
-        assert!(
-            !contains(cpu.status, BREAK),
-            "BREAK must never be set on the live status"
-        );
+        // self.status should not have BREAK set after brk() returns.
+        assert!(!contains(cpu.status, BREAK));
 
-        assert!(
-            contains(cpu.status, INTERRUPT_DISABLE),
-            "BRK must set INTERRUPT_DISABLE going forward"
-        );
+        assert!(contains(cpu.status, INTERRUPT_DISABLE));
 
         // Execution must have jumped to the IRQ/BRK vector.
         assert_eq!(cpu.pc, 0x8000);
@@ -249,10 +271,7 @@ mod tests {
 
         let extra_cycles = cpu.rti(Operand::Accumulator, &mut bus);
 
-        assert!(
-            !contains(cpu.status, BREAK),
-            "BREAK must never persist on the live status register"
-        );
+        assert!(!contains(cpu.status, BREAK));
         assert!(contains(cpu.status, CARRY));
         assert!(contains(cpu.status, UNUSED));
         assert_eq!(extra_cycles, 0);
@@ -320,56 +339,6 @@ mod tests {
         assert_eq!(
             cpu.sp, 0xFD,
             "sp should return to its original value after a full brk+rti round trip"
-        );
-    }
-
-    #[test]
-    fn rts_restores_pc_from_low_then_high_byte_plus_one() {
-        let mut bus = Bus::new();
-        let mut cpu = Cpu::new();
-        cpu.sp = 0xFB;
-        bus.write(0x01FC, 0x33); // pc low byte
-        bus.write(0x01FD, 0x12); // pc high byte
-
-        let extra_cycles = cpu.rts(Operand::Accumulator, &mut bus);
-
-        // Pulled address is 0x1233, then +1 gives 0x1234.
-        assert_eq!(cpu.pc, 0x1234);
-        assert_eq!(extra_cycles, 0);
-    }
-
-    #[test]
-    fn rts_advances_sp_by_exactly_two() {
-        let mut bus = Bus::new();
-        let mut cpu = Cpu::new();
-        cpu.sp = 0xFB;
-        bus.write(0x01FC, 0x00);
-        bus.write(0x01FD, 0x00);
-
-        cpu.rts(Operand::Accumulator, &mut bus);
-
-        assert_eq!(cpu.sp, 0xFD, "sp must advance by 2 (one pull per byte)");
-    }
-
-    #[test]
-    fn rts_mirrors_a_previous_jsr() {
-        let mut bus = Bus::new();
-        let mut cpu = Cpu::new();
-        cpu.pc = 0x1234; // already advanced past JSR's operand bytes
-        cpu.sp = 0xFD;
-
-        cpu.jsr(operand_at(0x8000), &mut bus);
-        assert_eq!(cpu.pc, 0x8000, "sanity check: jsr jumped to the subroutine");
-
-        cpu.rts(Operand::Accumulator, &mut bus);
-
-        assert_eq!(
-            cpu.pc, 0x1234,
-            "rts must return to exactly where jsr was called from"
-        );
-        assert_eq!(
-            cpu.sp, 0xFD,
-            "sp should return to its original value after a full jsr+rts round trip"
         );
     }
 }

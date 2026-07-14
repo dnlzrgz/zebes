@@ -4,21 +4,6 @@ use crate::{
 };
 
 impl Cpu {
-    fn branch_if(&mut self, condition: bool, operand: Operand) -> u8 {
-        if !condition {
-            return 0;
-        }
-
-        let (address, _) = operand.expect_address();
-        let old_pc = self.pc;
-        self.pc = address;
-        if (old_pc & 0xFF00) != (address & 0xFF00) {
-            2
-        } else {
-            1
-        }
-    }
-
     /// Branch if Carry Clear
     /// PC = PC + 2 memory (signed)
     ///
@@ -60,18 +45,6 @@ impl Cpu {
         self.branch_if(contains(self.status, ZERO), operand)
     }
 
-    /// Branch if Minus
-    /// PC = PC + 2 + memory (signed)
-    ///
-    /// If the negative flag is set, BMI branches to a nearby location by adding the branch offset
-    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
-    /// first byte *after* the branch instructions.
-    /// All instructions that change A, X, or Y implicitly set or clear the negative flag based on
-    /// bit 7 (the sign bit).
-    pub fn bmi(&mut self, operand: Operand, _: &mut Bus) -> u8 {
-        self.branch_if(contains(self.status, NEGATIVE), operand)
-    }
-
     /// Branch if Not Equal
     /// PC = PC + 2 + memory (signed)
     ///
@@ -95,6 +68,18 @@ impl Cpu {
     /// bit 7 (the sign bit).
     pub fn bpl(&mut self, operand: Operand, _: &mut Bus) -> u8 {
         self.branch_if(!contains(self.status, NEGATIVE), operand)
+    }
+
+    /// Branch if Minus
+    /// PC = PC + 2 + memory (signed)
+    ///
+    /// If the negative flag is set, BMI branches to a nearby location by adding the branch offset
+    /// to the program counter. The offset is signed and has a range of [-128, 127] relative to the
+    /// first byte *after* the branch instructions.
+    /// All instructions that change A, X, or Y implicitly set or clear the negative flag based on
+    /// bit 7 (the sign bit).
+    pub fn bmi(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+        self.branch_if(contains(self.status, NEGATIVE), operand)
     }
 
     /// Branch if Overflow Clear
@@ -203,29 +188,6 @@ mod tests {
     }
 
     #[test]
-    fn bmi_does_not_branch_when_negative_clear() {
-        let mut cpu = Cpu::new();
-        set(&mut cpu.status, NEGATIVE, false);
-        assert_branch_not_taken(Cpu::bmi, &mut cpu);
-    }
-
-    #[test]
-    fn bmi_branches_when_negative_set_same_page() {
-        let mut cpu = Cpu::new();
-        cpu.pc = 0x1000;
-        set(&mut cpu.status, NEGATIVE, true);
-        assert_branch_taken(Cpu::bmi, &mut cpu, 0x1010, 1);
-    }
-
-    #[test]
-    fn bmi_branches_across_page_boundary() {
-        let mut cpu = Cpu::new();
-        cpu.pc = 0x10F0;
-        set(&mut cpu.status, NEGATIVE, true);
-        assert_branch_taken(Cpu::bmi, &mut cpu, 0x1105, 2);
-    }
-
-    #[test]
     fn bne_branches_when_zero_clear() {
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
@@ -269,6 +231,29 @@ mod tests {
         cpu.pc = 0x10F0;
         set(&mut cpu.status, NEGATIVE, false);
         assert_branch_taken(Cpu::bpl, &mut cpu, 0x1105, 2);
+    }
+
+    #[test]
+    fn bmi_does_not_branch_when_negative_clear() {
+        let mut cpu = Cpu::new();
+        set(&mut cpu.status, NEGATIVE, false);
+        assert_branch_not_taken(Cpu::bmi, &mut cpu);
+    }
+
+    #[test]
+    fn bmi_branches_when_negative_set_same_page() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x1000;
+        set(&mut cpu.status, NEGATIVE, true);
+        assert_branch_taken(Cpu::bmi, &mut cpu, 0x1010, 1);
+    }
+
+    #[test]
+    fn bmi_branches_across_page_boundary() {
+        let mut cpu = Cpu::new();
+        cpu.pc = 0x10F0;
+        set(&mut cpu.status, NEGATIVE, true);
+        assert_branch_taken(Cpu::bmi, &mut cpu, 0x1105, 2);
     }
 
     #[test]

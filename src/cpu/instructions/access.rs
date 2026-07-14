@@ -16,6 +16,16 @@ impl Cpu {
         page_crossed as u8
     }
 
+    /// Store A
+    /// memory = A
+    ///
+    /// STA stores the accumulator value into memory.
+    pub fn sta(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        bus.write(address, self.a);
+        0
+    }
+
     /// Load X
     /// X = memory
     ///
@@ -28,6 +38,16 @@ impl Cpu {
         page_crossed as u8
     }
 
+    /// Store X
+    /// memory = X
+    ///
+    /// STX stores the X register value into memory.
+    pub fn stx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+        let (address, _) = operand.expect_address();
+        bus.write(address, self.x);
+        0
+    }
+
     /// Load Y
     /// Y = memory
     ///
@@ -38,26 +58,6 @@ impl Cpu {
         self.update_zn(self.y);
 
         page_crossed as u8
-    }
-
-    /// Store A
-    /// memory = A
-    ///
-    /// STA stores the accumulator value into memory.
-    pub fn sta(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
-        let (address, _) = operand.expect_address();
-        bus.write(address, self.a);
-        0
-    }
-
-    /// Store X
-    /// memory = X
-    ///
-    /// STX stores the X register value into memory.
-    pub fn stx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
-        let (address, _) = operand.expect_address();
-        bus.write(address, self.x);
-        0
     }
 
     /// Store Y
@@ -104,6 +104,18 @@ mod tests {
     }
 
     #[test]
+    fn sta_stores_accumulator_into_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.a = 0x42;
+
+        let extra_cycles = cpu.sta(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x42);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
     fn ldx_loads_memory_into_x() {
         let mut bus = Bus::new();
         let mut cpu = Cpu::new();
@@ -116,6 +128,18 @@ mod tests {
     }
 
     #[test]
+    fn stx_stores_x_into_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.x = 0x42;
+
+        let extra_cycles = cpu.stx(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x42);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
     fn ldy_loads_memory_into_y() {
         let mut bus = Bus::new();
         let mut cpu = Cpu::new();
@@ -124,6 +148,18 @@ mod tests {
         let extra_cycles = cpu.ldy(operand_at(0x0000), &mut bus);
 
         assert_eq!(cpu.y, 0x42);
+        assert_eq!(extra_cycles, 0);
+    }
+
+    #[test]
+    fn sty_stores_y_into_memory() {
+        let mut bus = Bus::new();
+        let mut cpu = Cpu::new();
+        cpu.y = 0x42;
+
+        let extra_cycles = cpu.sty(operand_at(0x0000), &mut bus);
+
+        assert_eq!(bus.peek(0x0000), 0x42);
         assert_eq!(extra_cycles, 0);
     }
 }

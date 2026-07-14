@@ -5,7 +5,7 @@ mod opcodes;
 
 use crate::{
     bus::Bus,
-    cpu::{flags::*, instructions::Instruction, opcodes::opcode_table},
+    cpu::{addressing::Operand, flags::*, instructions::Instruction, opcodes::opcode_table},
 };
 
 /// Models the core of the MOS 6502.
@@ -77,6 +77,21 @@ impl Cpu {
     fn pull_byte(&mut self, bus: &mut Bus) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         bus.read(0x0100 + self.sp as u16)
+    }
+
+    fn branch_if(&mut self, condition: bool, operand: Operand) -> u8 {
+        if !condition {
+            return 0;
+        }
+
+        let (address, _) = operand.expect_address();
+        let old_pc = self.pc;
+        self.pc = address;
+        if (old_pc & 0xFF00) != (address & 0xFF00) {
+            2
+        } else {
+            1
+        }
     }
 
     fn execute(&mut self, opcode: u8, bus: &mut Bus) -> u8 {
