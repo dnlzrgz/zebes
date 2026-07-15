@@ -1,7 +1,7 @@
-mod addressing;
-mod flags;
-mod instructions;
-mod opcodes;
+pub mod addressing;
+pub mod flags;
+pub mod instructions;
+pub mod opcodes;
 
 use crate::{
     bus::Bus,
@@ -46,12 +46,11 @@ impl Cpu {
         Self::default()
     }
 
-    /// Forces the CPU into the state it would have after a reset (e.g. when
-    /// the physical reset button of the NES was pressed).
-    ///
-    /// The program counter (`pc`) is loaded from the "reset vector". This lets a
+    /// The program counter is loaded from the "reset vector". This lets a
     /// cartridge tell the CPU where to start executing, since different programs are
-    /// expected to begin at different locations.
+    /// Forces the CPU into the state it would have after a reset. The program counter is loaded
+    /// from the "reset vector". This lets a cartridge tell the CPU where to start executing, since
+    /// different programs expect to begin at different locations.
     pub fn reset(&mut self, bus: &Bus) {
         self.pc = u16::from_le_bytes([bus.peek(0xFFFC), bus.peek(0xFFFD)]);
         self.sp = self.sp.wrapping_sub(3);
@@ -62,23 +61,29 @@ impl Cpu {
     pub fn clock(&mut self, bus: &mut Bus) {
         if self.cycles == 0 {
             let opcode = bus.read(self.pc);
-            self.pc += 1;
+            self.pc = self.pc.wrapping_add(1);
             self.cycles = self.execute(opcode, bus);
         }
 
-        self.cycles -= 1;
+        self.cycles = self.cycles.wrapping_sub(1);
     }
 
+    /// Pushes a byte into the stack and then decrementing the stack pointer.
     fn push_byte(&mut self, bus: &mut Bus, value: u8) {
         bus.write(0x0100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
     }
 
+    /// Pulls a byte off the stack. The stack pointer is increment first, then the byte is read.
     fn pull_byte(&mut self, bus: &mut Bus) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         bus.read(0x0100 + self.sp as u16)
     }
 
+    /// Abstraction of all 8 conditional branch instructions. Each of them just calls this method
+    /// with their own flag checks as `condition`.
+    /// If the condition is false the branch is not taken. If its true, then the branch is taken the
+    /// cost in cycles is incremented by 1, or 2 if the jump crosses a page boundary.
     fn branch_if(&mut self, condition: bool, operand: Operand) -> u8 {
         if !condition {
             return 0;
@@ -156,7 +161,7 @@ impl Cpu {
             Instruction::TYA => self.tya(operand, bus),
             Instruction::TSX => self.tsx(operand, bus),
             Instruction::TXS => self.txs(operand, bus),
-            _ => todo!("instruction not yet implemented: {:?}", info.instruction),
+            _ => todo!("not implemented: {:?}", info.instruction),
         };
 
         info.cycles + extra
