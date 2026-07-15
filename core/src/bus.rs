@@ -26,6 +26,13 @@ impl Bus {
     pub fn write(&mut self, addr: u16, data: u8) {
         self.ram[addr as usize] = data;
     }
+
+    /// Temporary helper for loading bytes into memory for debugging purposes.
+    pub fn load_bytes(&mut self, data: &[u8], start: u16) {
+        for (i, &byte) in data.iter().enumerate() {
+            self.write(start.wrapping_add(i as u16), byte);
+        }
+    }
 }
 
 #[cfg(test)]

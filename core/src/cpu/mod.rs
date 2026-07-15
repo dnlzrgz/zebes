@@ -166,4 +166,32 @@ impl Cpu {
 
         info.cycles + extra
     }
+
+    pub fn pc(&self) -> u16 {
+        self.pc
+    }
+
+    pub fn sp(&self) -> u8 {
+        self.sp
+    }
+
+    pub fn a(&self) -> u8 {
+        self.a
+    }
+
+    pub fn x(&self) -> u8 {
+        self.x
+    }
+
+    pub fn y(&self) -> u8 {
+        self.y
+    }
+
+    pub fn status(&self) -> u8 {
+        self.status
+    }
+
+    pub fn cycles(&self) -> u8 {
+        self.cycles
+    }
 }
