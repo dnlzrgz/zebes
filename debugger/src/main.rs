@@ -8,11 +8,11 @@ use ratatui::{
     text::Line,
     widgets::{Block, Borders, Paragraph},
 };
-use zebes_core::{bus::Bus, cpu::Cpu};
+use zebes_core::{cpu::Cpu, cpu_bus::CpuBus};
 
 struct App {
     cpu: Cpu,
-    bus: Bus,
+    bus: CpuBus,
 
     /// Current 256-byte memory page being displayed.
     memory_page: u16,
@@ -55,7 +55,7 @@ fn main() -> std::io::Result<()> {
 
     let mut app = App {
         cpu: Cpu::new(),
-        bus: Bus::new(),
+        bus: CpuBus::new(),
         memory_page: 0,
     };
 
@@ -165,7 +165,7 @@ fn cpu_view(cpu: &Cpu) -> Paragraph<'_> {
     Paragraph::new(lines).block(Block::default().borders(Borders::ALL).title("CPU"))
 }
 
-fn disassembly_view(bus: &Bus, pc: u16) -> Paragraph<'_> {
+fn disassembly_view(bus: &CpuBus, pc: u16) -> Paragraph<'_> {
     let mut lines = Vec::new();
     let mut addr = pc;
 
@@ -196,7 +196,7 @@ fn disassembly_view(bus: &Bus, pc: u16) -> Paragraph<'_> {
         .block(Block::default().borders(Borders::ALL).title("Disassembly"))
 }
 
-fn memory_view(bus: &Bus, page: u16) -> Paragraph<'_> {
+fn memory_view(bus: &CpuBus, page: u16) -> Paragraph<'_> {
     let mut lines = Vec::new();
 
     let page_start = (page as usize) * 0x0100;

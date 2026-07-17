@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -14,7 +14,7 @@ impl Cpu {
     /// compare to branch if the register is less than the memory value, so it is sometimes called
     /// BLT for Branch if Less Than. It can also be used after SBC to branch if the unsigned value
     /// underflowed or after ADC to branch if it did not overflow.
-    pub fn bcc(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bcc(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(!contains(self.status, CARRY), operand)
     }
 
@@ -28,7 +28,7 @@ impl Cpu {
     /// compare to branch if the register is greater than or equal to the memory value, so it is
     /// sometimes called BGE for Branch if Greater Than or Equal. It can also be used after ADC to
     /// branch if the usigned value overflowed or after SBC to branch if it did not underflow.
-    pub fn bcs(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bcs(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(contains(self.status, CARRY), operand)
     }
 
@@ -41,7 +41,7 @@ impl Cpu {
     /// Comparison uses this flag to indicate if the compared values are equal. All instructions
     /// that change A, X, or Y also implicitly set or clear the zero flag depending on whether the
     /// register becomes 0.
-    pub fn beq(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn beq(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(contains(self.status, ZERO), operand)
     }
 
@@ -54,7 +54,7 @@ impl Cpu {
     /// Comparison uses this flag to indicate if the compared values are equal. All instructions
     /// that change A, X, or Y also implicitly set or clear the zero flag depending on whether the
     /// register becomes 0.
-    pub fn bne(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bne(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(!contains(self.status, ZERO), operand)
     }
 
@@ -66,7 +66,7 @@ impl Cpu {
     /// first byte *after* the branch instruction.
     /// All instructions that change A, X, or Y implicitly set or clear the negative flag based on
     /// bit 7 (the sign bit).
-    pub fn bpl(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bpl(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(!contains(self.status, NEGATIVE), operand)
     }
 
@@ -78,7 +78,7 @@ impl Cpu {
     /// first byte *after* the branch instructions.
     /// All instructions that change A, X, or Y implicitly set or clear the negative flag based on
     /// bit 7 (the sign bit).
-    pub fn bmi(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bmi(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(contains(self.status, NEGATIVE), operand)
     }
 
@@ -93,7 +93,7 @@ impl Cpu {
     /// also sometimes used for signed overflow with ADC and SBC. The standard 6502 chip allows an
     /// external device to set overflow usign a pin, enabling software to poll for that event, but
     /// this is not present on the NES' 2A03.
-    pub fn bvc(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bvc(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(!contains(self.status, OVERFLOW), operand)
     }
 
@@ -108,7 +108,7 @@ impl Cpu {
     /// also sometimes used for signed overflow with ADC and SBC. The standard 6502 chip allows an
     /// external device to set overflow usign a pin, enabling software to poll for that event, but
     /// this is not present on the NES' 2A03.
-    pub fn bvs(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn bvs(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         self.branch_if(contains(self.status, OVERFLOW), operand)
     }
 }

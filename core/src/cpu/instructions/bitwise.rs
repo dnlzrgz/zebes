@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -9,7 +9,7 @@ impl Cpu {
     ///
     /// ANDs a memory value and the accumulator, bit by bit. If both input bits are 1, the resulting
     /// bit is 1. Otherwise, it is 0.
-    pub fn and(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn and(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
         self.a &= value;
@@ -22,7 +22,7 @@ impl Cpu {
     ///
     /// ORA inclusive-ORs a memory value and the accumulator, bit by bit. If either input bit is 1,
     /// the resulting bit is 1. Otherwise, it is 0.
-    pub fn ora(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn ora(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
 
@@ -42,7 +42,7 @@ impl Cpu {
     /// behaviour, inverting every bit of the other value. In fact, EOR can be thought of as NOT
     /// with a bitmask; all the 1 bits in one vlaue have the effect of inverting the corresponding
     /// bit in the other value, while 0 bits do nothing.
-    pub fn eor(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn eor(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
 
@@ -68,7 +68,7 @@ impl Cpu {
     /// which to read, this carries risk of triggering side effects if it reads a hardware register.
     /// This trick can be useful when working under tight constraints on space, time, or register
     /// usage.
-    pub fn bit(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn bit(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         let value = bus.read(address);
 
@@ -87,7 +87,7 @@ mod tests {
 
     #[test]
     fn and_masks_acc_with_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1100_1100;
         bus.write(0x0000, 0b1010_1010);
@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn and_sets_zero_when_result_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1111_0000;
         bus.write(0x0000, 0b0000_1111); // no overlapping bits
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn and_returns_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0xFF;
         bus.write(0x0000, 0xFF);
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn ora_ors_accumulator_with_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1100_0000;
         bus.write(0x0000, 0b0000_1100);
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn ora_sets_zero_when_both_operands_are_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x00;
         bus.write(0x0000, 0x00);
@@ -157,7 +157,7 @@ mod tests {
 
     #[test]
     fn ora_sets_negative_when_result_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x00;
         bus.write(0x0000, 0x80);
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn ora_returns_one_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x0F;
         bus.write(0x0000, 0xF0);
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn eor_xors_accumulator_with_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1100_1100;
         bus.write(0x0000, 0b1010_1010);
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn eor_with_0xff_inverts_all_bits() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1010_0101;
         bus.write(0x0000, 0xFF);
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn eor_sets_zero_when_operands_are_identical() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x77;
         bus.write(0x0000, 0x77);
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn eor_sets_negative_when_result_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x00;
         bus.write(0x0000, 0x80);
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn eor_returns_one_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x0F;
         bus.write(0x0000, 0xF0);
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn bit_sets_zero_when_and_result_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.a = 0b0000_1111;
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn bit_clears_zero_when_and_result_is_nonzero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.a = 0b0000_1111;
@@ -278,7 +278,7 @@ mod tests {
 
     #[test]
     fn bit_copies_bit_7_into_negative_flag() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.a = 0xFF;
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn bit_copies_bit_6_into_overflow_flag() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.a = 0xFF;
@@ -304,7 +304,7 @@ mod tests {
 
     #[test]
     fn bit_does_not_modify_accumulator() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.a = 0x55;

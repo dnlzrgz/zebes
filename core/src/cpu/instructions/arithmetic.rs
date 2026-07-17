@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -14,7 +14,7 @@ impl Cpu {
     /// It is common to clear carry with CLC before adding the first byte to ensure it is in a known
     /// state, avoiding off-by-one error. The overflow flag indicates whether signed overflow or
     /// underflow occurred.
-    pub fn adc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn adc(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
         let carry_in = if contains(self.status, CARRY) { 1 } else { 0 };
@@ -50,7 +50,7 @@ impl Cpu {
     /// Overflow works the same as with ADC, except with an inverted memory value. Therefore,
     /// overflow or underflow occur if result's sign is different from A's and the same as the
     /// memory value's.
-    pub fn sbc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn sbc(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
         let inverted_value = value ^ 0xFF;
@@ -79,7 +79,7 @@ impl Cpu {
     /// back to memory before the modified value. This extra write han matter if targeting a
     /// hardware register.
     /// Note that increment does not affect carry nor overflow.
-    pub fn inc(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn inc(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         let value = bus.read(address);
 
@@ -99,7 +99,7 @@ impl Cpu {
     /// back to memory before the modified value. This extra write can matter if targeting hardware
     /// register.
     /// Note that decrement does not affect carry nor overflow.
-    pub fn dec(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn dec(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         let value = bus.read(address);
 
@@ -114,7 +114,7 @@ impl Cpu {
     /// X = X + 1
     ///
     /// INX adds 1 from the X register. Note that it does not affect carry nor overflow.
-    pub fn inx(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn inx(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.x = self.x.wrapping_add(1);
         self.update_zn(self.x);
 
@@ -125,7 +125,7 @@ impl Cpu {
     /// X = X - 1
     ///
     /// DEX subtracts 1 from the X register. Note that it does not affect carry nor overflow.
-    pub fn dex(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn dex(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.x = self.x.wrapping_sub(1);
         self.update_zn(self.x);
 
@@ -136,7 +136,7 @@ impl Cpu {
     /// Y = Y + 1
     ///
     /// INY adds 1 from the Y register. Note that it does not affect carry nor overflow.
-    pub fn iny(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn iny(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.y = self.y.wrapping_add(1);
         self.update_zn(self.y);
 
@@ -147,7 +147,7 @@ impl Cpu {
     /// Y = Y - 1
     ///
     /// DEY subtracts 1 from the Y register. Note that it does not affect carry nor overflow.
-    pub fn dey(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn dey(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.y = self.y.wrapping_sub(1);
         self.update_zn(self.y);
 
@@ -162,7 +162,7 @@ mod tests {
 
     #[test]
     fn adc_simple_addition_with_no_carry() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         bus.write(0x0000, 0x05);
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn adc_sets_carry_flag_on_unsigned_overflow() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0xFF; // largest possible u8
         bus.write(0x0000, 0x01);
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn adc_includes_carry_bit_from_previous_adc() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x01;
         set(&mut cpu.status, CARRY, true); // simulate carry left
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn sbc_simple_subtraction_with_carry_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         set(&mut cpu.status, CARRY, true);
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn sbc_clear_carry_subtracts_one_extra() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         set(&mut cpu.status, CARRY, false);
@@ -241,7 +241,7 @@ mod tests {
 
     #[test]
     fn sbc_clears_carry_on_borrow() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         set(&mut cpu.status, CARRY, true);
@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn sbc_sets_zero_when_result_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         set(&mut cpu.status, CARRY, true);
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn inc_adds_one_to_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x10);
 
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn inc_wraps_from_0xff_to_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0xFF);
 
@@ -294,7 +294,7 @@ mod tests {
 
     #[test]
     fn dec_subtracts_one_from_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x10);
 
@@ -306,7 +306,7 @@ mod tests {
 
     #[test]
     fn dec_wraps_from_zero_to_0xff() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x00);
 
@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn dec_sets_zero_when_result_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x01);
 
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn dec_sets_negative_when_result_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x00); // will wrap to 0xFF, bit 7 set
 
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn inx_adds_one_to_x() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x10;
 
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn inx_wraps_from_0xff_to_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0xFF;
 
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn dex_subtracts_one_from_x() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x10;
 
@@ -380,7 +380,7 @@ mod tests {
 
     #[test]
     fn dex_wraps_from_zero_to_0xff() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x00;
 
@@ -393,7 +393,7 @@ mod tests {
 
     #[test]
     fn dex_sets_zero_when_result_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x01;
 
@@ -405,7 +405,7 @@ mod tests {
 
     #[test]
     fn iny_adds_one_to_y() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x10;
 
@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn iny_wraps_from_0xff_to_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0xFF;
 
@@ -429,7 +429,7 @@ mod tests {
 
     #[test]
     fn dey_subtracts_one_from_y() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x10;
 
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn dey_wraps_from_zero_to_0xff() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x00;
 
@@ -454,7 +454,7 @@ mod tests {
 
     #[test]
     fn dey_sets_zero_when_result_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x01;
 

@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -8,7 +8,7 @@ impl Cpu {
     /// A = memory
     ///
     /// LDA loads a memory value into the accumulator.
-    pub fn lda(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn lda(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         self.a = bus.read(address);
         self.update_zn(self.a);
@@ -20,7 +20,7 @@ impl Cpu {
     /// memory = A
     ///
     /// STA stores the accumulator value into memory.
-    pub fn sta(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn sta(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         bus.write(address, self.a);
         0
@@ -30,7 +30,7 @@ impl Cpu {
     /// X = memory
     ///
     /// LDX loads a memory value into the X register.
-    pub fn ldx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn ldx(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         self.x = bus.read(address);
         self.update_zn(self.x);
@@ -42,7 +42,7 @@ impl Cpu {
     /// memory = X
     ///
     /// STX stores the X register value into memory.
-    pub fn stx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn stx(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         bus.write(address, self.x);
         0
@@ -52,7 +52,7 @@ impl Cpu {
     /// Y = memory
     ///
     /// LDY loads a memory value into the Y register.
-    pub fn ldy(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn ldy(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         self.y = bus.read(address);
         self.update_zn(self.y);
@@ -64,7 +64,7 @@ impl Cpu {
     /// memory = Y
     ///
     /// STY stores the Y register value into memory.
-    pub fn sty(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn sty(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         bus.write(address, self.y);
         0
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn lda_loads_memory_into_accumulator() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x42);
 
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn lda_returns_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x10);
 
@@ -105,7 +105,7 @@ mod tests {
 
     #[test]
     fn sta_stores_accumulator_into_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x42;
 
@@ -117,7 +117,7 @@ mod tests {
 
     #[test]
     fn ldx_loads_memory_into_x() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x42);
 
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn stx_stores_x_into_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x42;
 
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn ldy_loads_memory_into_y() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0x42);
 
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn sty_stores_y_into_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x42;
 

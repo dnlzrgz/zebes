@@ -4,8 +4,8 @@ pub mod instructions;
 pub mod opcodes;
 
 use crate::{
-    bus::Bus,
     cpu::{addressing::Operand, flags::*, instructions::Instruction, opcodes::opcode_table},
+    cpu_bus::CpuBus,
 };
 
 /// Models the core of the MOS 6502.
@@ -51,14 +51,14 @@ impl Cpu {
     /// Forces the CPU into the state it would have after a reset. The program counter is loaded
     /// from the "reset vector". This lets a cartridge tell the CPU where to start executing, since
     /// different programs expect to begin at different locations.
-    pub fn reset(&mut self, bus: &Bus) {
+    pub fn reset(&mut self, bus: &CpuBus) {
         self.pc = u16::from_le_bytes([bus.peek(0xFFFC), bus.peek(0xFFFD)]);
         self.sp = self.sp.wrapping_sub(3);
         self.status = RESET_STATUS;
         self.cycles = 8;
     }
 
-    pub fn clock(&mut self, bus: &mut Bus) {
+    pub fn clock(&mut self, bus: &mut CpuBus) {
         if self.cycles == 0 {
             let opcode = bus.read(self.pc);
             self.pc = self.pc.wrapping_add(1);
@@ -69,13 +69,13 @@ impl Cpu {
     }
 
     /// Pushes a byte into the stack and then decrementing the stack pointer.
-    fn push_byte(&mut self, bus: &mut Bus, value: u8) {
+    fn push_byte(&mut self, bus: &mut CpuBus, value: u8) {
         bus.write(0x0100 + self.sp as u16, value);
         self.sp = self.sp.wrapping_sub(1);
     }
 
     /// Pulls a byte off the stack. The stack pointer is increment first, then the byte is read.
-    fn pull_byte(&mut self, bus: &mut Bus) -> u8 {
+    fn pull_byte(&mut self, bus: &mut CpuBus) -> u8 {
         self.sp = self.sp.wrapping_add(1);
         bus.read(0x0100 + self.sp as u16)
     }
@@ -99,7 +99,7 @@ impl Cpu {
         }
     }
 
-    fn execute(&mut self, opcode: u8, bus: &mut Bus) -> u8 {
+    fn execute(&mut self, opcode: u8, bus: &mut CpuBus) -> u8 {
         let info = opcode_table()[opcode as usize];
         let operand = self.resolve_address(info.mode, bus);
 

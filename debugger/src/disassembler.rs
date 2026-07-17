@@ -1,5 +1,5 @@
-use zebes_core::bus::Bus;
 use zebes_core::cpu::{addressing::AddressingMode, opcodes::opcode_table};
+use zebes_core::cpu_bus::CpuBus;
 
 pub struct DecodedInstruction {
     pub address: u16,
@@ -10,7 +10,7 @@ pub struct DecodedInstruction {
 }
 
 /// Decodes the instruction at `address`.
-pub fn disassemble(bus: &Bus, address: u16) -> DecodedInstruction {
+pub fn disassemble(bus: &CpuBus, address: u16) -> DecodedInstruction {
     let opcode = bus.peek(address);
     let info = opcode_table()[opcode as usize];
 

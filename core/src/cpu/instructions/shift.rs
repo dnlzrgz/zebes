@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -13,7 +13,7 @@ impl Cpu {
     /// indicating overflow.
     /// This is a read-modify instruction, meaning that its addressing modes that operate on memory
     /// first write the original value back to the memory before the modified value.
-    pub fn asl(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn asl(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let value = match operand {
             Operand::Accumulator => self.a,
             Operand::Address { address, .. } => bus.read(address),
@@ -43,7 +43,7 @@ impl Cpu {
     /// This is a read-modify-write instruction, meaning that its addressing modes that operate on
     /// memory first write the original value back to memory before the modified value. This extra
     /// write can matter if targeting a hardware register.
-    pub fn lsr(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn lsr(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let value = match operand {
             Operand::Accumulator => self.a,
             Operand::Address { address, .. } => bus.read(address),
@@ -71,7 +71,7 @@ impl Cpu {
     /// This is a read-modify-write instruction, meaning that its addressing modes that operate on
     /// memory first write the original value back to the memory before the modified value. This
     /// extra write can matter if targeting a hardware register.
-    pub fn rol(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn rol(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let value = match operand {
             Operand::Accumulator => self.a as u16,
             Operand::Address { address, .. } => bus.read(address) as u16,
@@ -102,7 +102,7 @@ impl Cpu {
     /// This is a read-modify-write instruction, meaning that its addressing modes that operate on
     /// memory first write the original value back to the memory before the modified value. This
     /// extra write can matter if targeting a hardware register.
-    pub fn ror(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn ror(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let value = match operand {
             Operand::Accumulator => self.a as u16,
             Operand::Address { address, .. } => bus.read(address) as u16,
@@ -131,7 +131,7 @@ mod tests {
 
     #[test]
     fn asl_shifts_memory_value_left() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0001);
 
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn asl_sets_carry_when_bit_7_shifts_out() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b1000_0000); // bit 7 set
 
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn asl_does_not_set_carry_when_bit_7_is_clear() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0100_0000); // bit 7 clear, bit 6 set
 
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn asl_accumulator_mode_shifts_register_not_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b0000_0011;
         bus.write(0x0000, 0xFF); // must remain untouched
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn asl_accumulator_mode_sets_carry_correctly() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b1100_0000;
 
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn lsr_shifts_memory_value_right() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0010);
 
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn lsr_sets_carry_when_bit_0_shifts_out() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0001); // bit 0 set
 
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn lsr_does_not_set_carry_when_bit_0_is_clear() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0010); // bit 0 clear, bit 1 set
 
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn lsr_never_sets_negative() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b1111_1111); // bit 7 set going in
 
@@ -249,7 +249,7 @@ mod tests {
 
     #[test]
     fn lsr_accumulator_mode_shifts_register_not_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b0000_0110;
         bus.write(0x0000, 0xFF); // must remain untouched
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn lsr_accumulator_mode_sets_carry_correctly() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0b0000_0011;
 
@@ -275,7 +275,7 @@ mod tests {
 
     #[test]
     fn rol_shifts_memory_value_left_with_no_carry_in() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0001);
         set(&mut cpu.status, CARRY, false);
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn rol_shifts_in_carry_at_bit_0() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0001);
         set(&mut cpu.status, CARRY, true);
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn rol_sets_carry_when_bit_7_shifts_out() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b1000_0000); // bit 7 set
         set(&mut cpu.status, CARRY, false);
@@ -314,7 +314,7 @@ mod tests {
 
     #[test]
     fn rol_returns_to_original_state_after_nine_rotations() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         let original: u8 = 0b1010_0110;
         bus.write(0x0000, original);
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn ror_shifts_memory_value_right_with_no_carry_in() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0010);
         set(&mut cpu.status, CARRY, false);
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn ror_shifts_in_carry_at_bit_7() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0010);
         set(&mut cpu.status, CARRY, true);
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn ror_sets_carry_when_bit_0_shifts_out() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         bus.write(0x0000, 0b0000_0001); // bit 0 set
         set(&mut cpu.status, CARRY, false);
@@ -376,7 +376,7 @@ mod tests {
 
     #[test]
     fn ror_full_rotation_returns_to_original_state_after_nine_rotations() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         let original: u8 = 0b1010_0110;
         bus.write(0x0000, original);

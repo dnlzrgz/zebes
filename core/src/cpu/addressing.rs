@@ -1,4 +1,4 @@
-use crate::{bus::Bus, cpu::Cpu};
+use crate::{cpu::Cpu, cpu_bus::CpuBus};
 
 /// The 6502's addressing modes: each describes a way of computing
 /// the effective address (or lack thereof) that an instruction operates on.
@@ -85,7 +85,7 @@ impl Operand {
 }
 
 impl Cpu {
-    pub fn resolve_address(&mut self, mode: AddressingMode, bus: &mut Bus) -> Operand {
+    pub fn resolve_address(&mut self, mode: AddressingMode, bus: &mut CpuBus) -> Operand {
         match mode {
             AddressingMode::Accumulator => self.addr_accumulator(),
             AddressingMode::Implied => self.addr_implied(),
@@ -123,7 +123,7 @@ impl Cpu {
         }
     }
 
-    fn addr_zero_page(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_zero_page(&mut self, bus: &mut CpuBus) -> Operand {
         let address = bus.read(self.pc) as u16;
         self.pc = self.pc.wrapping_add(1);
         Operand::Address {
@@ -132,7 +132,7 @@ impl Cpu {
         }
     }
 
-    fn addr_zero_page_x(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_zero_page_x(&mut self, bus: &mut CpuBus) -> Operand {
         let base = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
         let address = base.wrapping_add(self.x) as u16;
@@ -142,7 +142,7 @@ impl Cpu {
         }
     }
 
-    fn addr_zero_page_y(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_zero_page_y(&mut self, bus: &mut CpuBus) -> Operand {
         let base = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
         let address = base.wrapping_add(self.y) as u16;
@@ -152,7 +152,7 @@ impl Cpu {
         }
     }
 
-    fn addr_relative(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_relative(&mut self, bus: &mut CpuBus) -> Operand {
         let offset = bus.read(self.pc) as i8;
         self.pc = self.pc.wrapping_add(1);
 
@@ -166,7 +166,7 @@ impl Cpu {
         }
     }
 
-    fn addr_absolute(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_absolute(&mut self, bus: &mut CpuBus) -> Operand {
         let address = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
         self.pc = self.pc.wrapping_add(2);
         Operand::Address {
@@ -175,7 +175,7 @@ impl Cpu {
         }
     }
 
-    fn addr_absolute_x(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_absolute_x(&mut self, bus: &mut CpuBus) -> Operand {
         let base = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
         self.pc = self.pc.wrapping_add(2);
         let address = base.wrapping_add(self.x as u16);
@@ -186,7 +186,7 @@ impl Cpu {
         }
     }
 
-    fn addr_absolute_y(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_absolute_y(&mut self, bus: &mut CpuBus) -> Operand {
         let base = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
         self.pc = self.pc.wrapping_add(2);
         let address = base.wrapping_add(self.y as u16);
@@ -197,7 +197,7 @@ impl Cpu {
         }
     }
 
-    fn addr_indirect(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_indirect(&mut self, bus: &mut CpuBus) -> Operand {
         let pointer = u16::from_le_bytes([bus.read(self.pc), bus.read(self.pc.wrapping_add(1))]);
         self.pc = self.pc.wrapping_add(2);
 
@@ -221,7 +221,7 @@ impl Cpu {
         }
     }
 
-    fn addr_indirect_x(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_indirect_x(&mut self, bus: &mut CpuBus) -> Operand {
         let zp_base = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
 
@@ -238,7 +238,7 @@ impl Cpu {
         }
     }
 
-    fn addr_indirect_y(&mut self, bus: &mut Bus) -> Operand {
+    fn addr_indirect_y(&mut self, bus: &mut CpuBus) -> Operand {
         let zp_base = bus.read(self.pc);
         self.pc = self.pc.wrapping_add(1);
 
@@ -262,7 +262,6 @@ fn page_crossed(base: u16, address: u16) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::bus::Bus;
 
     #[test]
     fn implied_returns_placeholder_without_advancing_pc() {
@@ -287,7 +286,7 @@ mod tests {
 
     #[test]
     fn zero_page_reads_low_byte_and_advances_pc() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         bus.write(0x1000, 0x42);
@@ -302,7 +301,7 @@ mod tests {
 
     #[test]
     fn zero_page_x_wraps_within_page_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.x = 0x02;
@@ -316,7 +315,7 @@ mod tests {
 
     #[test]
     fn zero_page_y_wraps_within_page_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.y = 0x10;
@@ -330,7 +329,7 @@ mod tests {
 
     #[test]
     fn relative_positive_offset() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         bus.write(0x1000, 0x10); // +16
@@ -345,7 +344,7 @@ mod tests {
 
     #[test]
     fn relative_negative_offset() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         bus.write(0x1000, 0xFE); // -2 as i8
@@ -360,7 +359,7 @@ mod tests {
 
     #[test]
     fn absolute_reads_little_endian_address() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         bus.write(0x1000, 0x00);
@@ -376,7 +375,7 @@ mod tests {
 
     #[test]
     fn absolute_x_no_page_cross() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.x = 0x05;
@@ -392,7 +391,7 @@ mod tests {
 
     #[test]
     fn absolute_x_page_cross() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.x = 0x20;
@@ -408,7 +407,7 @@ mod tests {
 
     #[test]
     fn absolute_y_page_cross() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.y = 0xFF;
@@ -424,7 +423,7 @@ mod tests {
 
     #[test]
     fn indirect_normal_case() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         bus.write(0x1000, 0x00);
@@ -440,7 +439,7 @@ mod tests {
 
     #[test]
     fn indirect_page_wrap_bug() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         bus.write(0x1000, 0xFF);
@@ -461,7 +460,7 @@ mod tests {
 
     #[test]
     fn indirect_x_uses_index_before_pointer_lookup() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.x = 0x04;
@@ -478,7 +477,7 @@ mod tests {
 
     #[test]
     fn indirect_x_wraps_pointer_within_zero_page() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.x = 0x10;
@@ -494,7 +493,7 @@ mod tests {
 
     #[test]
     fn indirect_y_adds_index_after_pointer_lookup() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.y = 0x10;
@@ -511,7 +510,7 @@ mod tests {
 
     #[test]
     fn indirect_y_page_cross() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
         cpu.y = 0xFF;

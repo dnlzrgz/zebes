@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -10,7 +10,7 @@ impl Cpu {
     /// when writing timed code to delay for a desired amount of time, as padding to ensure that
     /// something does or does not cross a page, or to disable code in a binary.
     #[inline]
-    pub fn nop(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn nop(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         0
     }
 }
@@ -21,7 +21,7 @@ mod tests {
 
     #[test]
     fn nop_does_nothing_and_returns_zero_cycles() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x11;
         cpu.x = 0x22;

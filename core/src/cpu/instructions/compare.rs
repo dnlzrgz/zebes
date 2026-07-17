@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -12,7 +12,7 @@ impl Cpu {
     /// borrow, zero if the result is 0, and negative if the result is negative. However, carry and
     /// zero are often most easily remembered as inequalities.
     /// Note that comparison does not affect overflow.
-    pub fn cmp(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn cmp(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
 
@@ -31,7 +31,7 @@ impl Cpu {
     /// borrow, zero if the result is 0, and negative if the result is negative. However, carry and
     /// zero are often most easily remembered as inequalities.
     /// Note that comparison does not affect overflow.
-    pub fn cpx(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn cpx(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
 
@@ -50,7 +50,7 @@ impl Cpu {
     /// borrow, zero if the result is 0, and negative if the result is negative. However, carry and
     /// zero are often most easily remembered as inequalities.
     /// Note that comparison does not affect overflow.
-    pub fn cpy(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn cpy(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         let (address, page_crossed) = operand.expect_address();
         let value = bus.read(address);
 
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn cmp_sets_carry_and_zero_when_equal() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x42;
         bus.write(0x0000, 0x42);
@@ -86,7 +86,7 @@ mod tests {
 
     #[test]
     fn cmp_sets_carry_without_zero_when_a_is_greater() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x50;
         bus.write(0x0000, 0x10);
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn cmp_clears_carry_when_a_is_less_than_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         bus.write(0x0000, 0x50);
@@ -112,7 +112,7 @@ mod tests {
 
     #[test]
     fn cmp_sets_negative_when_result_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         bus.write(0x0000, 0x20);
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn cmp_returns_one_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x10;
         bus.write(0x0000, 0x10);
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn cpx_sets_carry_without_zero_when_a_is_greater() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x50;
         bus.write(0x0000, 0x10);
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn cpx_clears_carry_when_a_is_less_than_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x10;
         bus.write(0x0000, 0x50);
@@ -167,7 +167,7 @@ mod tests {
 
     #[test]
     fn cpx_sets_negative_when_result_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x10;
         bus.write(0x0000, 0x20);
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn cpx_returns_one_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x10;
         bus.write(0x0000, 0x10);
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn cpy_sets_carry_without_zero_when_a_is_greater() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x50;
         bus.write(0x0000, 0x10);
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn cpy_clears_carry_when_a_is_less_than_memory() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x10;
         bus.write(0x0000, 0x50);
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn cpy_sets_negative_when_result_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x10;
         bus.write(0x0000, 0x20);
@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn cpy_returns_one_extra_cycle_when_page_crossed() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x10;
         bus.write(0x0000, 0x10);

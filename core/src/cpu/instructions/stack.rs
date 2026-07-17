@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -10,7 +10,7 @@ impl Cpu {
     ///
     /// PHA stores the value of A to the current stack position and then decrements the stack
     /// pointer.
-    pub fn pha(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn pha(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         self.push_byte(bus, self.a);
         0
     }
@@ -20,7 +20,7 @@ impl Cpu {
     /// A = ($0100 + SP)
     ///
     /// PLA increments the stack pointer and then loads the value at that stack position into A.
-    pub fn pla(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn pla(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         self.a = self.pull_byte(bus);
         self.update_zn(self.a);
         0
@@ -33,7 +33,7 @@ impl Cpu {
     /// the stack pointer. The B flag and extra bit are both pushed as 1. The bit order is NV1BDIZC
     /// (high to low).
     /// SP = SP - 1
-    pub fn php(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn php(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         let pushed_status = to_pushed_byte(self.status);
         self.push_byte(bus, pushed_status);
         0
@@ -48,7 +48,7 @@ impl Cpu {
     /// Note that the effect of changing I is delayed one instruction because the flag is changed
     /// after IRQ is polled, delaying the effect until IRQ is polled in the next instruction like
     /// with CLI and SEI.
-    pub fn plp(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn plp(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         let pulled = self.pull_byte(bus);
         self.status = (pulled & !BREAK) | UNUSED;
         0
@@ -58,7 +58,7 @@ impl Cpu {
     /// SP = X
     ///
     /// TXS copies the X register value to the stack pointer.
-    pub fn txs(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn txs(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.sp = self.x;
         0
     }
@@ -67,7 +67,7 @@ impl Cpu {
     /// X = SP
     ///
     /// TSX copies the stack pointer value to the X register.
-    pub fn tsx(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn tsx(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.x = self.sp;
         self.update_zn(self.x);
         0
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn pha_pushes_accumulator_onto_stack() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x42;
         cpu.sp = 0xFD;
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn pha_does_not_modify_accumulator_or_flags() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x42;
         let status_before = cpu.status;
@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn pla_loads_pulled_value_into_accumulator() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFC;
         bus.write(0x01FD, 0x42);
@@ -121,7 +121,7 @@ mod tests {
 
     #[test]
     fn pla_mirrors_a_previous_pha() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x77;
         cpu.sp = 0xFD;
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn pla_sets_zero_when_pulled_value_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0xFF;
         cpu.sp = 0xFC;
@@ -151,7 +151,7 @@ mod tests {
 
     #[test]
     fn pla_sets_negative_when_pulled_value_has_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFC;
         bus.write(0x01FD, 0x80);
@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     fn php_pushes_status_with_break_and_unused_forced_high() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFD;
         set(&mut cpu.status, CARRY, true);
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn php_does_not_set_break_on_the_live_status_register() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.php(Operand::Accumulator, &mut bus);
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn plp_restores_status_from_stack() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFC;
         bus.write(0x01FD, CARRY | ZERO | NEGATIVE);
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn plp_forces_break_low_regardless_of_pulled_value() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFC;
         bus.write(0x01FD, CARRY | BREAK);
@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn plp_forces_unused_high_regardless_of_pulled_value() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFC;
         bus.write(0x01FD, CARRY);
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn plp_mirrors_a_previous_php() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFD;
         set(&mut cpu.status, CARRY, true);
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn txs_copies_x_into_stack_pointer() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x42;
 
@@ -265,7 +265,7 @@ mod tests {
 
     #[test]
     fn txs_does_not_affect_flags() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x00;
         let status_before = cpu.status;
@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn tsx_copies_stack_pointer_into_x() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0x42;
 
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn tsx_sets_zero_when_stack_pointer_is_zero() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0x00;
         cpu.x = 0xFF;
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn tsx_sets_negative_when_stack_pointer_has_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0x80;
 

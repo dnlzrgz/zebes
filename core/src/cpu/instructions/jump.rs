@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand, flags::*},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -15,7 +15,7 @@ impl Cpu {
     /// increment the page when reading the second byte and thus reads the wrong address. For
     /// example, JMP ($03FF) read $03FF and $0300 instead of $0400. Care should be taken to ensure
     /// this variable does not cross a page.
-    pub fn jmp(&mut self, operand: Operand, _: &mut Bus) -> u8 {
+    pub fn jmp(&mut self, operand: Operand, _: &mut CpuBus) -> u8 {
         let (address, _) = operand.expect_address();
         self.pc = address;
         0
@@ -33,7 +33,7 @@ impl Cpu {
     /// instruction, rather than directly at the instruction. This is because RTS increments the
     /// program counter before the next instruction is fetched. This differs from the return address
     /// pushed by interrupts and used by RTI, which points directly to the next instruction.
-    pub fn jsr(&mut self, operand: Operand, bus: &mut Bus) -> u8 {
+    pub fn jsr(&mut self, operand: Operand, bus: &mut CpuBus) -> u8 {
         self.pc = self.pc.wrapping_sub(1);
 
         self.push_byte(bus, (self.pc >> 8) as u8); // high byte
@@ -53,7 +53,7 @@ impl Cpu {
     /// RTS pulls an address from the stack into the program counter and then increments it. It is
     /// normally used at the end of a function to return to the instruction after the JSR that
     /// called the function. However, RTS is also sometimes used to implement jump tables.
-    pub fn rts(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn rts(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         let lo = self.pull_byte(bus);
         let hi = self.pull_byte(bus);
         self.pc = u16::from_le_bytes([lo, hi]);
@@ -87,7 +87,7 @@ impl Cpu {
     /// of NES games, BRK is often most useful as a crash handler, where the unused program space is
     /// filled with $00 and the IRQ handler displays debugging information or otherwise handles the
     /// crash in a clean way.
-    pub fn brk(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn brk(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         self.pc = self.pc.wrapping_add(1);
 
         self.push_byte(bus, (self.pc >> 8) as u8); // high byte
@@ -114,7 +114,7 @@ impl Cpu {
     /// is because the flags change before IRQs are polled for the instruction, not after. The PC
     /// pulling behaves like RTS except that the return address is the exact same address of the
     /// next instruction instead of 1 byte before it.
-    pub fn rti(&mut self, _: Operand, bus: &mut Bus) -> u8 {
+    pub fn rti(&mut self, _: Operand, bus: &mut CpuBus) -> u8 {
         let pulled = self.pull_byte(bus);
         self.status = (pulled & !BREAK) | UNUSED;
 
@@ -133,7 +133,7 @@ mod tests {
 
     #[test]
     fn jmp_sets_pc_to_operand_address() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1000;
 
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn jsr_pushes_return_address_minus_one_and_jumps() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1234;
         cpu.sp = 0xFD;
@@ -165,7 +165,7 @@ mod tests {
 
     #[test]
     fn rts_restores_pc_from_low_then_high_byte_plus_one() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFB;
         bus.write(0x01FC, 0x33); // pc low byte
@@ -180,7 +180,7 @@ mod tests {
 
     #[test]
     fn rts_advances_sp_by_exactly_two() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFB;
         bus.write(0x01FC, 0x00);
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn rts_mirrors_a_previous_jsr() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.pc = 0x1234; // already advanced past JSR's operand bytes
         cpu.sp = 0xFD;
@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn brk_pushes_return_address_and_status_then_jumps_to_irq_vector() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.pc = 0x1234;
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn rti_restores_status_with_break_forced_low() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFA;
         // Stack layout (bottom to top as pulled): status, pc-low, pc-high
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn rti_restores_pc_from_low_then_high_byte() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFA;
         bus.write(0x01FB, 0x00); // status
@@ -293,7 +293,7 @@ mod tests {
 
     #[test]
     fn rti_advances_sp_by_exactly_three() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.sp = 0xFA;
         bus.write(0x01FB, 0x00);
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn rti_mirrors_a_previous_brk() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
 
         cpu.pc = 0x1234;

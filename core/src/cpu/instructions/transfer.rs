@@ -1,6 +1,6 @@
 use crate::{
-    bus::Bus,
     cpu::{Cpu, addressing::Operand},
+    cpu_bus::CpuBus,
 };
 
 impl Cpu {
@@ -8,7 +8,7 @@ impl Cpu {
     /// X = A
     ///
     /// TAX copies the accumulator value to the X register.
-    pub fn tax(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn tax(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.x = self.a;
         self.update_zn(self.x);
         0
@@ -18,7 +18,7 @@ impl Cpu {
     /// A = X
     ///
     /// TXA copies the X register value to the accumulator.
-    pub fn txa(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn txa(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.a = self.x;
         self.update_zn(self.a);
         0
@@ -28,7 +28,7 @@ impl Cpu {
     /// Y = A
     ///
     /// TAY copies the accumulator value to the Y register.
-    pub fn tay(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn tay(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.y = self.a;
         self.update_zn(self.y);
         0
@@ -38,7 +38,7 @@ impl Cpu {
     /// A = Y
     ///
     /// TYA copies the Y register value to the accumulator.
-    pub fn tya(&mut self, _: Operand, _: &mut Bus) -> u8 {
+    pub fn tya(&mut self, _: Operand, _: &mut CpuBus) -> u8 {
         self.a = self.y;
         self.update_zn(self.a);
         0
@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn tax_copies_accumulator_into_x() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x42;
 
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn tax_sets_negative_when_accumulator_has_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x80;
 
@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn txa_copies_x_into_accumulator() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x42;
 
@@ -89,7 +89,7 @@ mod tests {
 
     #[test]
     fn txa_flags_reflect_the_copied_value() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.x = 0x00;
         cpu.a = 0xFF;
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn tay_copies_accumulator_into_y() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x42;
 
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn tay_sets_negative_when_accumulator_has_high_bit_set() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.a = 0x80;
 
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn tya_copies_y_into_accumulator() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x42;
 
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn tya_flags_reflect_the_copied_value() {
-        let mut bus = Bus::new();
+        let mut bus = CpuBus::new();
         let mut cpu = Cpu::new();
         cpu.y = 0x00;
         cpu.a = 0xFF;

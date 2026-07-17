@@ -1,16 +1,16 @@
 const RAM_SIZE: usize = 0x2000; // 8kb, covers 0x0000..=0x1FFF
 
-pub struct Bus {
+pub struct CpuBus {
     ram: [u8; RAM_SIZE],
 }
 
-impl Default for Bus {
+impl Default for CpuBus {
     fn default() -> Self {
         Self { ram: [0; RAM_SIZE] }
     }
 }
 
-impl Bus {
+impl CpuBus {
     pub fn new() -> Self {
         Self::default()
     }
