@@ -57,7 +57,7 @@ impl Cpu {
         self.pc = u16::from_le_bytes([bus.peek(0xFFFC), bus.peek(0xFFFD)]);
         self.sp = 0xFD;
         self.status = RESET_STATUS;
-        self.cycles = 7; // TODO: check
+        self.cycles = 7;
     }
 
     pub fn clock(&mut self, bus: &mut CpuBus) {
