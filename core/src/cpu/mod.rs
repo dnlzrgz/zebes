@@ -25,6 +25,7 @@ pub struct Cpu {
     /// Number of clock cycles remaining for the current instruction
     /// that is being executed.
     cycles: u8,
+    total_cycles: u64,
 }
 
 impl Default for Cpu {
@@ -37,6 +38,7 @@ impl Default for Cpu {
             sp: 0xFD,
             status: RESET_STATUS,
             cycles: 0,
+            total_cycles: 0,
         }
     }
 }
@@ -53,9 +55,9 @@ impl Cpu {
     /// different programs expect to begin at different locations.
     pub fn reset(&mut self, bus: &CpuBus) {
         self.pc = u16::from_le_bytes([bus.peek(0xFFFC), bus.peek(0xFFFD)]);
-        self.sp = self.sp.wrapping_sub(3);
+        self.sp = 0xFD;
         self.status = RESET_STATUS;
-        self.cycles = 8;
+        self.cycles = 7; // TODO: check
     }
 
     pub fn clock(&mut self, bus: &mut CpuBus) {
@@ -66,6 +68,7 @@ impl Cpu {
         }
 
         self.cycles = self.cycles.wrapping_sub(1);
+        self.total_cycles = self.total_cycles.wrapping_add(1);
     }
 
     /// Pushes a byte into the stack and then decrementing the stack pointer.
@@ -171,6 +174,10 @@ impl Cpu {
         self.pc
     }
 
+    pub fn set_pc(&mut self, pc: u16) {
+        self.pc = pc;
+    }
+
     pub fn sp(&self) -> u8 {
         self.sp
     }
@@ -193,5 +200,9 @@ impl Cpu {
 
     pub fn cycles(&self) -> u8 {
         self.cycles
+    }
+
+    pub fn total_cycles(&self) -> u64 {
+        self.total_cycles
     }
 }

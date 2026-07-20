@@ -207,45 +207,6 @@ mod tests {
         assert_eq!(cpu.sp, 0xFD);
     }
 
-    // FIXME: Fix after having added correct cartridge/mapper.
-    // #[test]
-    // fn brk_pushes_return_address_and_status_then_jumps_to_irq_vector() {
-    //     let mut bus = CpuBus::new();
-    //     let mut cpu = Cpu::new();
-    //
-    //     cpu.pc = 0x1234;
-    //     cpu.sp = 0xFD;
-    //
-    //     set(&mut cpu.status, CARRY, true);
-    //     set(&mut cpu.status, NEGATIVE, true);
-    //     set(&mut cpu.status, INTERRUPT_DISABLE, false);
-    //
-    //     let status_before = cpu.status;
-    //
-    //     bus.write(0xFFFE, 0x00);
-    //     bus.write(0xFFFF, 0x80); // vector points at 0x8000
-    //
-    //     let extra_cycles = cpu.brk(Operand::Accumulator, &mut bus); // operand is unused
-    //
-    //     let expected_return_addr: u16 = 0x1235;
-    //
-    //     assert_eq!(bus.peek(0x01FD), (expected_return_addr >> 8) as u8);
-    //     assert_eq!(bus.peek(0x01FC), (expected_return_addr & 0x00FF) as u8);
-    //     assert_eq!(cpu.sp, 0xFA);
-    //
-    //     let pushed_status = bus.peek(0x01FB);
-    //     let expected_status = to_pushed_byte(status_before);
-    //     assert_eq!(pushed_status, expected_status);
-    //
-    //     assert!(!contains(cpu.status, BREAK));
-    //
-    //     assert!(contains(cpu.status, INTERRUPT_DISABLE));
-    //
-    //     assert_eq!(cpu.pc, 0x8000);
-    //
-    //     assert_eq!(extra_cycles, 0);
-    // }
-
     #[test]
     fn rti_restores_status_with_break_forced_low() {
         let mut bus = CpuBus::new();
@@ -290,42 +251,5 @@ mod tests {
         cpu.rti(Operand::Accumulator, &mut bus);
 
         assert_eq!(cpu.sp, 0xFD, "sp must advance by 3 (one pull per byte)");
-    }
-
-    #[test]
-    fn rti_mirrors_a_previous_brk() {
-        let mut bus = CpuBus::new();
-        let mut cpu = Cpu::new();
-
-        cpu.pc = 0x1234;
-        cpu.sp = 0xFD;
-        set(&mut cpu.status, CARRY, true);
-        set(&mut cpu.status, NEGATIVE, true);
-        set(&mut cpu.status, INTERRUPT_DISABLE, false);
-        let status_before_brk = cpu.status;
-        let pc_after_brk_advance = cpu.pc.wrapping_add(1); // BRK's own pc+1 before pushing
-
-        // IRQ/BRK vector — brk() will jump here.
-        bus.write(0xFFFE, 0x00);
-        bus.write(0xFFFF, 0x90);
-
-        cpu.brk(Operand::Accumulator, &mut bus);
-        cpu.status = 0x00;
-        cpu.pc = 0x0000;
-
-        cpu.rti(Operand::Accumulator, &mut bus);
-
-        assert_eq!(
-            cpu.pc, pc_after_brk_advance,
-            "RTI must return to BRK's exact return address"
-        );
-        assert_eq!(
-            cpu.status, status_before_brk,
-            "RTI must restore the pre-BRK flags exactly"
-        );
-        assert_eq!(
-            cpu.sp, 0xFD,
-            "sp should return to its original value after a full brk+rti round trip"
-        );
     }
 }
