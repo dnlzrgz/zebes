@@ -1,5 +1,3 @@
-mod disassembler;
-
 use crossterm::event::{self, Event, KeyCode};
 use ratatui::{
     Terminal,
@@ -9,6 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph},
 };
 use zebes_core::{cpu::Cpu, cpu_bus::CpuBus};
+use zebes_debugger::disassembler::disassemble;
 
 struct App {
     cpu: Cpu,
@@ -59,7 +58,7 @@ fn main() -> std::io::Result<()> {
         memory_page: 0,
     };
 
-    app.bus.load_bytes(&DEMO_PROGRAM, 0x8000);
+    // app.bus.load(&DEMO_PROGRAM);
     app.bus.write(0xFFFC, 0x00);
     app.bus.write(0xFFFD, 0x80);
     app.cpu.reset(&app.bus);
@@ -170,7 +169,7 @@ fn disassembly_view(bus: &CpuBus, pc: u16) -> Paragraph<'_> {
     let mut addr = pc;
 
     for _ in 0..10 {
-        let inst = disassembler::disassemble(bus, addr);
+        let inst = disassemble(bus, addr);
 
         let bytes = inst
             .bytes
