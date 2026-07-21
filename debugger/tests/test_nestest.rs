@@ -11,7 +11,7 @@ fn test_against_nestest() {
     let cartridge = Cartridge::try_from_ines(&rom)
         .unwrap_or_else(|err| panic!("Failed to load cartridge: {err}"));
 
-    let mut bus = CpuBus::with_cartridge(cartridge);
+    let mut bus = CpuBus::new().with_cartridge(cartridge);
     let mut cpu = Cpu::new();
 
     cpu.reset(&bus);

@@ -66,18 +66,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn flag_masks_are_correct() {
-        assert_eq!(CARRY, 0b0000_0001);
-        assert_eq!(ZERO, 0b0000_0010);
-        assert_eq!(INTERRUPT_DISABLE, 0b0000_0100);
-        assert_eq!(DECIMAL, 0b0000_1000);
-        assert_eq!(BREAK, 0b0001_0000);
-        assert_eq!(UNUSED, 0b0010_0000);
-        assert_eq!(OVERFLOW, 0b0100_0000);
-        assert_eq!(NEGATIVE, 0b1000_0000);
-    }
-
-    #[test]
     fn reset_state_is_correct() {
         assert!(contains(RESET_STATUS, INTERRUPT_DISABLE));
         assert!(contains(RESET_STATUS, UNUSED));

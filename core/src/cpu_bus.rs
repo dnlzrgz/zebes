@@ -1,9 +1,9 @@
-use crate::cartridge::Cartridge;
+use crate::{cartridge::Cartridge, ppu::Ppu};
 
 pub struct CpuBus {
     ram: [u8; 0x0800],
     cartridge: Cartridge,
-    ppu: [u8; 8],
+    ppu: Ppu,
 }
 
 impl Default for CpuBus {
@@ -11,7 +11,7 @@ impl Default for CpuBus {
         Self {
             ram: [0; 0x0800],
             cartridge: Cartridge::new(),
-            ppu: [0; 8],
+            ppu: Ppu::new(),
         }
     }
 }
@@ -21,18 +21,20 @@ impl CpuBus {
         Self::default()
     }
 
-    pub fn with_cartridge(cartridge: Cartridge) -> Self {
-        Self {
-            ram: [0; 0x0800],
-            cartridge,
-            ppu: [0; 8],
-        }
+    pub fn with_cartridge(mut self, cartridge: Cartridge) -> Self {
+        self.cartridge = cartridge;
+        self
+    }
+
+    pub fn with_ppu(mut self, ppu: Ppu) -> Self {
+        self.ppu = ppu;
+        self
     }
 
     pub fn read(&mut self, address: u16) -> u8 {
         match address {
             0x0000..=0x1FFF => self.ram[(address & 0x07FF) as usize], // RAM
-            0x2000..=0x3FFF => self.ppu[(address & 0x0007) as usize], // PPU
+            0x2000..=0x3FFF => self.ppu.cpu_read(address & 0x0007),   // PPU
             0x4000..=0x4017 => 0x00,                                  // APU + I/O
             0x4018..=0x401F => 0x00,                                  // APU + I/O (test mode)
             0x4020..=0x5FFF => 0x00,                                  // Cartridge expansion
@@ -44,7 +46,7 @@ impl CpuBus {
     pub fn peek(&self, address: u16) -> u8 {
         match address {
             0x0000..=0x1FFF => self.ram[(address & 0x07FF) as usize], // RAM
-            0x2000..=0x3FFF => self.ppu[(address & 0x0007) as usize], // PPU
+            0x2000..=0x3FFF => self.ppu.cpu_peek(address & 0x0007),   // PPU
             0x4000..=0x4017 => 0x00,                                  // APU + I/O
             0x4018..=0x401F => 0x00,                                  // APU + I/O (test mode)
             0x4020..=0x5FFF => 0x00,                                  // Cartridge expansion
@@ -56,7 +58,7 @@ impl CpuBus {
     pub fn write(&mut self, address: u16, data: u8) {
         match address {
             0x0000..=0x1FFF => self.ram[(address & 0x07FF) as usize] = data, // RAM
-            0x2000..=0x3FFF => self.ppu[(address & 0x0007) as usize] = data, // PPU
+            0x2000..=0x3FFF => self.ppu.cpu_write(address & 0x0007, data),   // PPU
             0x4000..=0x4017 => {}                                            // APU + I/O
             0x4018..=0x401F => {} // APU + I/O (test mode)
             0x4020..=0x5FFF => {} // Cartridge expansion
