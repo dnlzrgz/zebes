@@ -1,8 +1,8 @@
-use crate::{cartridge::Cartridge, ppu::Ppu};
+use crate::{cartridge::SharedCartridge, ppu::Ppu};
 
 pub struct CpuBus {
     ram: [u8; 0x0800],
-    cartridge: Cartridge,
+    cartridge: SharedCartridge,
     ppu: Ppu,
 }
 
@@ -10,7 +10,7 @@ impl Default for CpuBus {
     fn default() -> Self {
         Self {
             ram: [0; 0x0800],
-            cartridge: Cartridge::new(),
+            cartridge: SharedCartridge::default(),
             ppu: Ppu::new(),
         }
     }
@@ -21,7 +21,7 @@ impl CpuBus {
         Self::default()
     }
 
-    pub fn with_cartridge(mut self, cartridge: Cartridge) -> Self {
+    pub fn with_cartridge(mut self, cartridge: SharedCartridge) -> Self {
         self.cartridge = cartridge;
         self
     }
@@ -39,7 +39,7 @@ impl CpuBus {
             0x4018..=0x401F => 0x00,                                  // APU + I/O (test mode)
             0x4020..=0x5FFF => 0x00,                                  // Cartridge expansion
             0x6000..=0x7FFF => 0x00,                                  // Cartridge SRAM/PGR-RAM
-            0x8000..=0xFFFF => self.cartridge.cpu_read(address).unwrap_or(0x00), // PRG-ROM
+            0x8000..=0xFFFF => self.cartridge.borrow().cpu_read(address).unwrap_or(0x00), // PRG-ROM
         }
     }
 
@@ -51,7 +51,7 @@ impl CpuBus {
             0x4018..=0x401F => 0x00,                                  // APU + I/O (test mode)
             0x4020..=0x5FFF => 0x00,                                  // Cartridge expansion
             0x6000..=0x7FFF => 0x00,                                  // Cartridge SRAM/PGR-RAM
-            0x8000..=0xFFFF => self.cartridge.cpu_read(address).unwrap_or(0x00), // PRG-ROM
+            0x8000..=0xFFFF => self.cartridge.borrow().cpu_read(address).unwrap_or(0x00), // PRG-ROM
         }
     }
 
@@ -63,7 +63,7 @@ impl CpuBus {
             0x4018..=0x401F => {} // APU + I/O (test mode)
             0x4020..=0x5FFF => {} // Cartridge expansion
             0x6000..=0x7FFF => {} // Cartridge SRAM/PGR-RAM
-            0x8000..=0xFFFF => self.cartridge.cpu_write(address, data), // PRG-ROM
+            0x8000..=0xFFFF => self.cartridge.borrow_mut().cpu_write(address, data), // PRG-ROM
         }
     }
 }

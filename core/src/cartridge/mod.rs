@@ -3,6 +3,7 @@ mod mapper000;
 
 pub use mapper::Mapper;
 use mapper000::Mapper000;
+use std::{cell::RefCell, rc::Rc};
 
 /// Every valid iNES file should start with this exact 4-byte signature.
 const INES_MAGIC: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
@@ -74,4 +75,15 @@ impl Cartridge {
     pub fn cpu_write(&mut self, address: u16, data: u8) {
         self.mapper.cpu_write(address, data);
     }
+
+    pub fn ppu_read(&self, address: u16) -> Option<u8> {
+        todo!()
+    }
+
+    pub fn ppu_write(&mut self, address: u16, data: u8) {
+        todo!()
+    }
 }
+
+/// Shared cartridge handle for the CPU's and PPU's bus.
+pub type SharedCartridge = Rc<RefCell<Cartridge>>;

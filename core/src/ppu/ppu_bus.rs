@@ -1,3 +1,5 @@
+use crate::cartridge::SharedCartridge;
+
 /// Nametable mirroring mode set by the cartridge.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Mirroring {
@@ -15,6 +17,9 @@ pub struct PpuBus {
 
     /// Represents how the two extra logical nametables are wired.
     mirroring: Mirroring,
+
+    /// Shared handle to the cartridge.
+    cartridge: SharedCartridge,
 }
 
 impl Default for PpuBus {
@@ -23,6 +28,7 @@ impl Default for PpuBus {
             nametables: [0; 0x0800],
             palette: [0; 32],
             mirroring: Mirroring::Horizontal,
+            cartridge: SharedCartridge::default(),
         }
     }
 }
@@ -32,12 +38,14 @@ impl PpuBus {
         Self::default()
     }
 
+    pub fn with_cartridge(mut self, cartridge: SharedCartridge) -> Self {
+        self.cartridge = cartridge;
+        self
+    }
+
     pub fn read(&self, address: u16) -> u8 {
         match address & 0x3FFF {
-            0x0000..=0x1FFF => {
-                // TODO: read from cartridge.
-                0
-            }
+            0x0000..=0x1FFF => self.cartridge.borrow().ppu_read(address).unwrap_or(0),
             0x2000..=0x3EFF => self.nametables[self.nametable_index(address)],
             0x3F00..=0x3FFF => self.palette[Self::palette_index(address)],
             _ => unreachable!("address & 0x3FFF is always in 0..=0x3FFF"),
@@ -47,7 +55,7 @@ impl PpuBus {
     pub fn write(&mut self, address: u16, data: u8) {
         match address & 0x3FFF {
             0x0000..=0x1FFF => {
-                // TODO: write to cartridge.
+                self.cartridge.borrow_mut().ppu_write(address, data);
             }
             0x2000..=0x3EFF => {
                 self.nametables[self.nametable_index(address)] = data;
@@ -66,7 +74,7 @@ impl PpuBus {
         let table = address / 0x0400; // 4 logical nametables (0-3)
         let offset = (address % 0x0400) as usize;
 
-        // TODO: check again mirroring behavior.
+        // TODO: check mirroring behavior.
         let physical_table = match self.mirroring {
             Mirroring::Horizontal => table / 2,
             Mirroring::Vertical => table % 2,

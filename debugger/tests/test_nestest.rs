@@ -1,4 +1,11 @@
-use zebes_core::{cartridge::Cartridge, cpu::Cpu, cpu_bus::CpuBus};
+use std::{cell::RefCell, rc::Rc};
+
+use zebes_core::{
+    cartridge::Cartridge,
+    cpu::Cpu,
+    cpu_bus::CpuBus,
+    ppu::{Ppu, ppu_bus::PpuBus},
+};
 use zebes_debugger::tracer::trace;
 
 #[test]
@@ -10,17 +17,23 @@ fn test_against_nestest() {
 
     let cartridge = Cartridge::try_from_ines(&rom)
         .unwrap_or_else(|err| panic!("Failed to load cartridge: {err}"));
+    let cartridge = Rc::new(RefCell::new(cartridge));
 
-    let mut bus = CpuBus::new().with_cartridge(cartridge);
+    let ppu_bus = PpuBus::new().with_cartridge(cartridge.clone());
+    let ppu = Ppu::new().with_bus(ppu_bus);
+
+    let mut cpu_bus = CpuBus::new()
+        .with_cartridge(cartridge.clone())
+        .with_ppu(ppu);
     let mut cpu = Cpu::new();
 
-    cpu.reset(&bus);
+    cpu.reset(&cpu_bus);
     cpu.set_pc(0xC000);
 
     let mut line_num = 0;
     loop {
         if cpu.cycles() == 0 {
-            let mine = trace(&cpu, &bus);
+            let mine = trace(&cpu, &cpu_bus);
             match golden_lines.next() {
                 Some(expected) => {
                     assert_eq!(
@@ -33,6 +46,6 @@ fn test_against_nestest() {
             }
         }
 
-        cpu.clock(&mut bus);
+        cpu.clock(&mut cpu_bus);
     }
 }

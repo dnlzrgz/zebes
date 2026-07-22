@@ -1,5 +1,5 @@
 mod flags;
-mod ppu_bus;
+pub mod ppu_bus;
 
 use ppu_bus::PpuBus;
 
@@ -89,6 +89,11 @@ impl Ppu {
         Self::default()
     }
 
+    pub fn with_bus(mut self, bus: PpuBus) -> Self {
+        self.bus = bus;
+        self
+    }
+
     pub fn cpu_read(&mut self, address: u16) -> u8 {
         match address & 0x0007 {
             flags::REG_PPUCTRL => 0, // write-only
@@ -145,7 +150,7 @@ impl Ppu {
                 if !self.w {
                     // First write
                     self.x = data & 0x07;
-                    self.t = (self.t & 0x001F) | (data as u16 >> 3);
+                    self.t = (self.t & !0x001F) | (data as u16 >> 3);
                 } else {
                     // Second write
                     self.t = (self.t & !0x73E0)
