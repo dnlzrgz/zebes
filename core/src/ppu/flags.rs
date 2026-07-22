@@ -2,6 +2,19 @@
 //! address space, but because their addresses are incompletely decoded, they're mirrored every 8 bytes.
 
 //
+// Registers offsets ($2000-$2007)
+//
+
+pub const REG_PPUCTRL: u16 = 0x0000;
+pub const REG_PPUMASK: u16 = 0x0001;
+pub const REG_PPUSTATUS: u16 = 0x0002;
+pub const REG_OAMADDR: u16 = 0x0003;
+pub const REG_OAMDATA: u16 = 0x0004;
+pub const REG_PPUSCROLL: u16 = 0x0005;
+pub const REG_PPUADDR: u16 = 0x0006;
+pub const REG_PPUDATA: u16 = 0x0007;
+
+//
 // PPUCTRL - Miscellaneous settings ($2000 write)
 //
 

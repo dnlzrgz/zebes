@@ -8,7 +8,7 @@ use crate::{
     cpu_bus::CpuBus,
 };
 
-/// Models the core of the MOS 6502.
+/// Models the MOS 6502.
 pub struct Cpu {
     /// Accumulator register.
     a: u8,
