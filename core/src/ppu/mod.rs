@@ -4,8 +4,9 @@ pub mod ppu_bus;
 use ppu_bus::PpuBus;
 
 use crate::ppu::flags::{
-    REG_OAMADDR, REG_OAMDATA, REG_PPUADDR, REG_PPUCTRL, REG_PPUDATA, REG_PPUMASK, REG_PPUSCROLL,
-    REG_PPUSTATUS, STATUS_VBLANK, set, vram_increment,
+    CTRL_NMI_ENABLE, REG_OAMADDR, REG_OAMDATA, REG_PPUADDR, REG_PPUCTRL, REG_PPUDATA, REG_PPUMASK,
+    REG_PPUSCROLL, REG_PPUSTATUS, STATUS_SPRITE_OVERFLOW, STATUS_SPRITE_ZERO_HIT, STATUS_VBLANK,
+    contains, set, vram_increment,
 };
 
 /// Models the Ricoh 2C02.
@@ -38,47 +39,37 @@ pub struct Ppu {
     /// Set when the PPU enters vertical blank and NMI is requested.
     nmi_requested: bool,
 
+    /// Current scanline (-1 = pre-render, 0..=239 = visible, 240 = post-render, 241..=260 =
+    /// vertical blank).
+    scanline: i16,
+
+    /// Current cycle within scanline (0..=340)
+    cycle: u16,
+
+    /// Number of frames rendered.
+    frame: u64,
+
+    // PPU-owned bus.
     bus: PpuBus,
 }
 
 impl Default for Ppu {
     fn default() -> Self {
         Self {
-            // Miscellaneous settings, written via PPUCTRL.
             ctrl: 0,
-
-            // Rendering settings, written via PPUMASK.
             mask: 0,
-
-            // Rendering events, read via PPUSTATUS.
             status: 0,
-
-            // Set via OAMADDR, address to acces OAM.
             oam_address: 0,
-
-            // Object Attribute Memory.
             oam: [0; 256],
-
-            // Current VRAM address shared by PPUSCROLL, PPUADDR, and PPUDATA.
             v: 0,
-
-            // Temporaty VRAM address.
             t: 0,
-
-            // Fine X scroll. Pixel offset withing current tile.
             x: 0,
-
-            // Toggles on each write to PPUSCROLL/PPUADDR signaling if the next write is the first
-            // or the second of the pair.
             w: false,
-
-            // Internal read buffer for PPUDATA.
             read_buffer: 0,
-
-            // Set when the PPU enters verical blank while the NMI-enable bit of PPUCTRL is set.
             nmi_requested: false,
-
-            // PPU-owned bus.
+            scanline: -1,
+            cycle: 0,
+            frame: 0,
             bus: PpuBus::new(),
         }
     }
@@ -92,6 +83,38 @@ impl Ppu {
     pub fn with_bus(mut self, bus: PpuBus) -> Self {
         self.bus = bus;
         self
+    }
+
+    pub fn clock(&mut self) {
+        if self.scanline == 241 && self.cycle == 1 {
+            set(&mut self.status, STATUS_VBLANK, true);
+            if contains(self.ctrl, CTRL_NMI_ENABLE) {
+                self.nmi_requested = true;
+            }
+        }
+
+        if self.scanline == -1 && self.cycle == 1 {
+            set(&mut self.status, STATUS_VBLANK, false);
+            set(&mut self.status, STATUS_SPRITE_ZERO_HIT, false);
+            set(&mut self.status, STATUS_SPRITE_OVERFLOW, false);
+        }
+
+        self.cycle = self.cycle.wrapping_add(1);
+        if self.cycle > 340 {
+            self.cycle = 0;
+            self.scanline = self.scanline.wrapping_add(1);
+
+            if self.scanline > 260 {
+                self.scanline = self.scanline.wrapping_sub(1);
+                self.frame = self.frame.wrapping_add(1);
+            }
+        }
+    }
+
+    pub fn take_nmi(&mut self) -> bool {
+        let requested = self.nmi_requested;
+        self.nmi_requested = false;
+        requested
     }
 
     pub fn cpu_read(&mut self, address: u16) -> u8 {

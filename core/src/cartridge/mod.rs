@@ -77,11 +77,11 @@ impl Cartridge {
     }
 
     pub fn ppu_read(&self, address: u16) -> Option<u8> {
-        todo!()
+        self.mapper.ppu_read(address)
     }
 
     pub fn ppu_write(&mut self, address: u16, data: u8) {
-        todo!()
+        self.mapper.ppu_write(address, data);
     }
 }
 

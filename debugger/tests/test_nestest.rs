@@ -22,9 +22,7 @@ fn test_against_nestest() {
     let ppu_bus = PpuBus::new().with_cartridge(cartridge.clone());
     let ppu = Ppu::new().with_bus(ppu_bus);
 
-    let mut cpu_bus = CpuBus::new()
-        .with_cartridge(cartridge.clone())
-        .with_ppu(ppu);
+    let mut cpu_bus = CpuBus::new().with_cartridge(cartridge).with_ppu(ppu);
     let mut cpu = Cpu::new();
 
     cpu.reset(&cpu_bus);

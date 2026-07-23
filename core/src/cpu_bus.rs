@@ -66,4 +66,12 @@ impl CpuBus {
             0x8000..=0xFFFF => self.cartridge.borrow_mut().cpu_write(address, data), // PRG-ROM
         }
     }
+
+    pub fn tick_ppu(&mut self) {
+        self.ppu.clock();
+    }
+
+    pub fn take_nmi(&mut self) -> bool {
+        self.ppu.take_nmi()
+    }
 }

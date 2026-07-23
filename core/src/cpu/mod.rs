@@ -60,6 +60,19 @@ impl Cpu {
         self.cycles = 7;
     }
 
+    /// Process a non-maskable interrupt (NMI) triggered by the PPU at the start of the VBLANK
+    /// period to signal that the screen has finished drawing and the CPU can safely update the
+    /// graphics for the next frame.
+    pub fn trigger_nmi(&mut self, bus: &mut CpuBus) {
+        self.push_byte(bus, (self.pc >> 8) as u8);
+        self.push_byte(bus, self.pc as u8);
+        self.push_byte(bus, to_interrupt_pushed_byte(self.status));
+
+        set(&mut self.status, INTERRUPT_DISABLE, true);
+        self.pc = u16::from_le_bytes([bus.read(0xFFFA), bus.read(0xFFFB)]);
+        self.cycles = 7;
+    }
+
     pub fn clock(&mut self, bus: &mut CpuBus) {
         if self.cycles == 0 {
             let opcode = bus.read(self.pc);
@@ -69,6 +82,18 @@ impl Cpu {
 
         self.cycles = self.cycles.wrapping_sub(1);
         self.total_cycles = self.total_cycles.wrapping_add(1);
+    }
+
+    pub fn step(&mut self, bus: &mut CpuBus) {
+        for _ in 0..3 {
+            bus.tick_ppu();
+        }
+
+        self.clock(bus);
+
+        if self.cycles == 0 && bus.take_nmi() {
+            self.trigger_nmi(bus);
+        }
     }
 
     /// Pushes a byte into the stack and then decrementing the stack pointer.
