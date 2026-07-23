@@ -20,7 +20,7 @@ pub fn trace(cpu: &Cpu, bus: &CpuBus) -> String {
     };
 
     format!(
-        "{:04X}  {:<8}  {:<32}A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} CYC:{}",
+        "{:04X}  {:<8}  {:<32}A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
         pc,
         bytes_str,
         asm,
@@ -29,6 +29,8 @@ pub fn trace(cpu: &Cpu, bus: &CpuBus) -> String {
         cpu.y(),
         cpu.status(),
         cpu.sp(),
+        bus.ppu.scanline(),
+        bus.ppu.cycle(),
         cpu.total_cycles()
     )
 }

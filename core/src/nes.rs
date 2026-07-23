@@ -53,7 +53,15 @@ impl Nes {
         &self.cpu
     }
 
+    pub fn cpu_mut(&mut self) -> &mut Cpu {
+        &mut self.cpu
+    }
+
     pub fn bus(&self) -> &CpuBus {
         &self.bus
+    }
+
+    pub fn bus_mut(&mut self) -> &mut CpuBus {
+        &mut self.bus
     }
 }

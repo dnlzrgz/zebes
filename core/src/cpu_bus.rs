@@ -3,7 +3,7 @@ use crate::{cartridge::SharedCartridge, ppu::Ppu};
 pub struct CpuBus {
     ram: [u8; 0x0800],
     cartridge: SharedCartridge,
-    ppu: Ppu,
+    pub ppu: Ppu,
 }
 
 impl Default for CpuBus {

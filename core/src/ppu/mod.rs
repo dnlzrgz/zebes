@@ -3,11 +3,7 @@ pub mod ppu_bus;
 
 use ppu_bus::PpuBus;
 
-use crate::ppu::flags::{
-    CTRL_NMI_ENABLE, REG_OAMADDR, REG_OAMDATA, REG_PPUADDR, REG_PPUCTRL, REG_PPUDATA, REG_PPUMASK,
-    REG_PPUSCROLL, REG_PPUSTATUS, STATUS_SPRITE_OVERFLOW, STATUS_SPRITE_ZERO_HIT, STATUS_VBLANK,
-    contains, set, vram_increment,
-};
+use crate::ppu::flags::*;
 
 /// Models the Ricoh 2C02.
 pub struct Ppu {
@@ -39,9 +35,9 @@ pub struct Ppu {
     /// Set when the PPU enters vertical blank and NMI is requested.
     nmi_requested: bool,
 
-    /// Current scanline (-1 = pre-render, 0..=239 = visible, 240 = post-render, 241..=260 =
-    /// vertical blank).
-    scanline: i16,
+    /// Current scanline (0..=239 = visible, 240 = post-render, 241..=260 =
+    /// vertical blank, 261 = pre-render).
+    scanline: u16,
 
     /// Current cycle within scanline (0..=340)
     cycle: u16,
@@ -67,7 +63,7 @@ impl Default for Ppu {
             w: false,
             read_buffer: 0,
             nmi_requested: false,
-            scanline: -1,
+            scanline: 0,
             cycle: 0,
             frame: 0,
             bus: PpuBus::new(),
@@ -93,19 +89,18 @@ impl Ppu {
             }
         }
 
-        if self.scanline == -1 && self.cycle == 1 {
+        if self.scanline == 261 && self.cycle == 1 {
             set(&mut self.status, STATUS_VBLANK, false);
             set(&mut self.status, STATUS_SPRITE_ZERO_HIT, false);
             set(&mut self.status, STATUS_SPRITE_OVERFLOW, false);
         }
 
-        self.cycle = self.cycle.wrapping_add(1);
+        self.cycle += 1;
         if self.cycle > 340 {
             self.cycle = 0;
-            self.scanline = self.scanline.wrapping_add(1);
-
-            if self.scanline > 260 {
-                self.scanline = self.scanline.wrapping_sub(1);
+            self.scanline += 1;
+            if self.scanline > 261 {
+                self.scanline = 0;
                 self.frame = self.frame.wrapping_add(1);
             }
         }
@@ -201,5 +196,13 @@ impl Ppu {
             }
             _ => unreachable!("address & 0x0007 is always in 0..=7"),
         }
+    }
+
+    pub fn scanline(&self) -> u16 {
+        self.scanline
+    }
+
+    pub fn cycle(&self) -> u16 {
+        self.cycle
     }
 }
