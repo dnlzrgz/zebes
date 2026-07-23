@@ -74,7 +74,7 @@ pub fn disassemble(bus: &CpuBus, address: u16, x: u8, y: u8) -> DecodedInstructi
             if is_jump {
                 format!("${:04X}", addr)
             } else {
-                let value = bus.peek(address);
+                let value = bus.peek(addr);
                 format!("${:04X} = {:02X}", addr, value)
             }
         }
