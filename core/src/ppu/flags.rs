@@ -1,6 +1,8 @@
 //! Bit masks for the PPU's CPU-visible registers. These sit at $2000 through $2007 in the CPU's
 //! address space, but because their addresses are incompletely decoded, they're mirrored every 8 bytes.
 
+use crate::bits::contains;
+
 //
 // Registers offsets ($2000-$2007)
 //
@@ -84,20 +86,6 @@ pub const STATUS_SPRITE_ZERO_HIT: u8 = 1 << 6;
 pub const STATUS_VBLANK: u8 = 1 << 7;
 
 #[inline]
-pub fn contains(register: u8, flag: u8) -> bool {
-    register & flag != 0
-}
-
-#[inline]
-pub fn set(register: &mut u8, flag: u8, value: bool) {
-    if value {
-        *register |= flag;
-    } else {
-        *register &= !flag;
-    }
-}
-
-#[inline]
 pub fn base_nametable(ctrl: u8) -> u8 {
     ctrl & (CTRL_NAMETABLE_LO | CTRL_NAMETABLE_HI)
 }
@@ -146,26 +134,6 @@ pub fn rendering_enabled(mask: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn contains_checks_only_the_given_flag() {
-        let status = STATUS_VBLANK | STATUS_SPRITE_ZERO_HIT;
-
-        assert!(contains(status, STATUS_VBLANK));
-        assert!(contains(status, STATUS_SPRITE_ZERO_HIT));
-        assert!(!contains(status, STATUS_SPRITE_OVERFLOW));
-    }
-
-    #[test]
-    fn set_sets_flags() {
-        let mut status = STATUS_SPRITE_ZERO_HIT;
-
-        set(&mut status, STATUS_VBLANK, true);
-        assert_eq!(status, STATUS_SPRITE_ZERO_HIT | STATUS_VBLANK);
-
-        set(&mut status, STATUS_SPRITE_ZERO_HIT, false);
-        assert_eq!(status, STATUS_VBLANK);
-    }
 
     #[test]
     fn base_nametable_extracts_low_two_bits_only() {

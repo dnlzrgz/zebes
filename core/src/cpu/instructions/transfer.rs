@@ -48,6 +48,7 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bits::contains;
     use crate::cpu::flags::*;
 
     #[test]

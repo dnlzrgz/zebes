@@ -33,20 +33,6 @@ pub const NEGATIVE: u8 = 1 << 7;
 /// Reset status value.
 pub const RESET_STATUS: u8 = INTERRUPT_DISABLE | UNUSED;
 
-#[inline]
-pub fn contains(status: u8, flag: u8) -> bool {
-    status & flag != 0
-}
-
-#[inline]
-pub fn set(status: &mut u8, flag: u8, value: bool) {
-    if value {
-        *status |= flag;
-    } else {
-        *status &= !flag;
-    }
-}
-
 /// Status byte as it should be pushed to the stack for PHP/BRK:
 /// B forced high, unused forced high.
 #[inline]
@@ -64,6 +50,7 @@ pub fn to_interrupt_pushed_byte(status: u8) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bits::*;
 
     #[test]
     fn reset_state_is_correct() {
@@ -75,52 +62,6 @@ mod tests {
         assert!(!contains(RESET_STATUS, BREAK));
         assert!(!contains(RESET_STATUS, OVERFLOW));
         assert!(!contains(RESET_STATUS, NEGATIVE));
-    }
-
-    #[test]
-    fn contains_returns_true_when_flag_is_set() {
-        let status = CARRY | ZERO;
-
-        assert!(contains(status, CARRY));
-        assert!(contains(status, ZERO));
-        assert!(!contains(status, NEGATIVE))
-    }
-
-    #[test]
-    fn contains_returns_false_when_flag_is_clear() {
-        assert!(!contains(0, CARRY));
-    }
-
-    #[test]
-    fn set_sets_flag() {
-        let mut status = 0;
-        set(&mut status, CARRY, true);
-        assert_eq!(status, CARRY);
-    }
-
-    #[test]
-    fn set_clears_flag() {
-        let mut status = CARRY;
-        set(&mut status, CARRY, false);
-        assert_eq!(status, 0);
-    }
-
-    #[test]
-    fn set_does_not_affect_other_flags() {
-        let mut status = ZERO;
-        set(&mut status, CARRY, true);
-        assert_eq!(status, ZERO | CARRY);
-    }
-
-    #[test]
-    fn set_idempotency() {
-        let mut status = CARRY;
-        set(&mut status, CARRY, true);
-        assert_eq!(status, CARRY);
-
-        let mut status = ZERO;
-        set(&mut status, CARRY, false);
-        assert_eq!(status, ZERO);
     }
 
     #[test]

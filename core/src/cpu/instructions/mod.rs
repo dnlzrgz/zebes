@@ -1,3 +1,4 @@
+use crate::bits::set;
 use crate::cpu::{Cpu, flags::*};
 
 mod access;

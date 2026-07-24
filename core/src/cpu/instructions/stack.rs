@@ -77,6 +77,7 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bits::{contains, set};
 
     #[test]
     fn pha_pushes_accumulator_onto_stack() {

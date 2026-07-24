@@ -1,4 +1,5 @@
 use crate::{
+    bits::contains,
     cpu::{Cpu, addressing::Operand, flags::*},
     cpu_bus::CpuBus,
 };
@@ -116,6 +117,7 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bits::set;
     use crate::cpu::instructions::test_utils::{assert_branch_not_taken, assert_branch_taken};
 
     #[test]

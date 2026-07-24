@@ -1,4 +1,5 @@
 use crate::{
+    bits::set,
     cpu::{Cpu, addressing::Operand, flags::*},
     cpu_bus::CpuBus,
 };
@@ -86,6 +87,7 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::bits::contains;
 
     #[test]
     fn clc_clears_carry_flag() {

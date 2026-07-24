@@ -4,6 +4,7 @@ pub mod instructions;
 pub mod opcodes;
 
 use crate::{
+    bits::set,
     cpu::{addressing::Operand, flags::*, instructions::Instruction, opcodes::opcode_table},
     cpu_bus::CpuBus,
 };

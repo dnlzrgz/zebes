@@ -1,4 +1,5 @@
 use crate::{
+    bits::{contains, set},
     cpu::{Cpu, addressing::Operand, flags::*},
     cpu_bus::CpuBus,
 };

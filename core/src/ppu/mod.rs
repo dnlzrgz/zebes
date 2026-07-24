@@ -3,6 +3,7 @@ pub mod ppu_bus;
 
 use ppu_bus::PpuBus;
 
+use crate::bits::{contains, set};
 use crate::ppu::flags::*;
 
 /// Models the Ricoh 2C02.
