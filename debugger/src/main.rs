@@ -1,28 +1,15 @@
 use ratatui::{Terminal, backend::CrosstermBackend};
-use zebes_core::{cpu::Cpu, cpu_bus::CpuBus};
-
-struct App {
-    cpu: Cpu,
-    bus: CpuBus,
-}
-
-impl App {
-    fn step(&mut self) {
-        self.cpu.clock(&mut self.bus);
-        while self.cpu.cycles() > 0 {
-            self.cpu.clock(&mut self.bus);
-        }
-    }
-}
+use zebes_core::nes::Nes;
 
 fn main() -> std::io::Result<()> {
     let terminal = Terminal::new(CrosstermBackend::new(std::io::stdout()))?;
     crossterm::terminal::enable_raw_mode()?;
 
-    let app = App {
-        cpu: Cpu::new(),
-        bus: CpuBus::new(),
-    };
+    let mut nes = Nes::new();
+    nes.load(&[0; 0x800])
+        .unwrap_or_else(|err| panic!("Failed to load cartridge: {err}"));
+    nes.reset();
+    nes.cpu_mut().set_pc(0xC000);
 
     crossterm::terminal::disable_raw_mode()?;
     Ok(())

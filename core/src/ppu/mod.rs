@@ -1,10 +1,16 @@
 mod flags;
+mod palette;
 pub mod ppu_bus;
-
-use ppu_bus::PpuBus;
 
 use crate::bits::{contains, set};
 use crate::ppu::flags::*;
+use crate::ppu::palette::Rgb;
+use crate::ppu::ppu_bus::PpuBus;
+
+pub const SCREEN_WIDTH: usize = 256;
+pub const SCREEN_HEIGHT: usize = 240;
+
+pub type Framebuffer = [Rgb; SCREEN_WIDTH * SCREEN_HEIGHT];
 
 /// Models the Ricoh 2C02.
 pub struct Ppu {
@@ -46,6 +52,18 @@ pub struct Ppu {
     /// Number of frames rendered.
     frame: u64,
 
+    bg_pattern_shift_lo: u16,
+    bg_pattern_shift_hi: u16,
+    bg_attr_shift_lo: u16,
+    bg_attr_shift_hi: u16,
+
+    next_tile_id: u8,
+    next_tile_attr: u8,
+    next_tile_lo: u8,
+    next_tile_hi: u8,
+
+    frame_buffer: Box<Framebuffer>,
+
     // PPU-owned bus.
     bus: PpuBus,
 }
@@ -67,6 +85,15 @@ impl Default for Ppu {
             scanline: 0,
             cycle: 0,
             frame: 0,
+            bg_pattern_shift_lo: 0,
+            bg_pattern_shift_hi: 0,
+            bg_attr_shift_lo: 0,
+            bg_attr_shift_hi: 0,
+            next_tile_id: 0,
+            next_tile_attr: 0,
+            next_tile_lo: 0,
+            next_tile_hi: 0,
+            frame_buffer: Box::new([Rgb::default(); SCREEN_WIDTH * SCREEN_HEIGHT]),
             bus: PpuBus::new(),
         }
     }
@@ -205,5 +232,9 @@ impl Ppu {
 
     pub fn cycle(&self) -> u16 {
         self.cycle
+    }
+
+    pub fn framebuffer(&self) -> &Framebuffer {
+        &self.frame_buffer
     }
 }
