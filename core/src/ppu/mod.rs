@@ -1,3 +1,4 @@
+mod background;
 mod flags;
 mod palette;
 pub mod ppu_bus;
@@ -110,6 +111,25 @@ impl Ppu {
     }
 
     pub fn clock(&mut self) {
+        if rendering_enabled(self.mask) && (self.scanline < 240 || self.scanline == 261) {
+            if (1..=256).contains(&self.cycle) || (321..=336).contains(&self.cycle) {
+                self.shift_register();
+                self.fetch_background_tile();
+            }
+
+            if self.cycle == 256 {
+                self.increment_y();
+            }
+
+            if self.cycle == 257 {
+                self.copy_horizontal_bits();
+            }
+
+            if self.scanline == 261 && (280..=304).contains(&self.cycle) {
+                self.copy_vertical_bits();
+            }
+        }
+
         if self.scanline == 241 && self.cycle == 1 {
             set(&mut self.status, STATUS_VBLANK, true);
             if contains(self.ctrl, CTRL_NMI_ENABLE) {
