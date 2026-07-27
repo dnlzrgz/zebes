@@ -1,0 +1,11 @@
+[package]
+name = "zebes"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+zebes-core = { path = "../core" }
+macroquad = "0.4.15"

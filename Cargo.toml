@@ -1,5 +1,6 @@
 [workspace]
-members = ["core", "debugger"]
+members = ["core", "debugger", "zebes"]
+default-members = ["zebes"]
 resolver = "2"
 
 [workspace.package]
