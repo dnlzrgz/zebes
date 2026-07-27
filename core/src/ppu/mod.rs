@@ -113,6 +113,9 @@ impl Ppu {
     pub fn clock(&mut self) {
         if rendering_enabled(self.mask) && (self.scanline < 240 || self.scanline == 261) {
             if (1..=256).contains(&self.cycle) || (321..=336).contains(&self.cycle) {
+                if self.scanline < 240 && (1..=256).contains(&self.cycle) {
+                    self.render_pixel();
+                }
                 self.shift_register();
                 self.fetch_background_tile();
             }
@@ -252,6 +255,10 @@ impl Ppu {
 
     pub fn cycle(&self) -> u16 {
         self.cycle
+    }
+
+    pub fn frame(&self) -> u64 {
+        self.frame
     }
 
     pub fn framebuffer(&self) -> &Framebuffer {
