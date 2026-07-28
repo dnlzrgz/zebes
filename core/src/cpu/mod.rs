@@ -132,7 +132,6 @@ impl Cpu {
         let info = opcode_table()[opcode as usize];
         let operand = self.resolve_address(info.mode, bus);
 
-        // TODO: check function pointers.
         let extra = match info.instruction {
             Instruction::ADC => self.adc(operand, bus),
             Instruction::AND => self.and(operand, bus),

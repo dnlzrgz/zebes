@@ -5,6 +5,10 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
+description = " Cross-platform NES emulator frontend for Zebes, built with macroquad."
+keywords = ["nes", "emulator", "games", "6502", "macroquad"]
+categories = ["games", "emulators"]
+publish = false
 
 [dependencies]
 zebes-core = { path = "../core" }

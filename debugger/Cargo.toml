@@ -5,6 +5,12 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
+description = "Terminal-based debugger for the Zebes NES emulator."
+readme = "README.md"
+keywords = ["nes", "emulator", "tui", "debugger"]
+categories = ["emulators", "command-line-utilities"]
+publish = false
+
 
 [dependencies]
 color-eyre = "0.6.5"
