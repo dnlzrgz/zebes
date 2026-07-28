@@ -1,4 +1,5 @@
 use macroquad::prelude::*;
+use zebes_core::controller::*;
 use zebes_core::nes::Nes;
 
 #[macroquad::main("Zebes")]
@@ -17,6 +18,35 @@ async fn main() {
     nes.reset();
 
     loop {
+        // Read  input.
+        let mut state = 0u8;
+        if is_key_down(KeyCode::Z) {
+            state |= BUTTON_A;
+        }
+        if is_key_down(KeyCode::X) {
+            state |= BUTTON_B;
+        }
+        if is_key_down(KeyCode::RightShift) {
+            state |= BUTTON_SELECT;
+        }
+        if is_key_down(KeyCode::Enter) {
+            state |= BUTTON_START;
+        }
+        if is_key_down(KeyCode::Up) {
+            state |= BUTTON_UP;
+        }
+        if is_key_down(KeyCode::Down) {
+            state |= BUTTON_DOWN;
+        }
+        if is_key_down(KeyCode::Left) {
+            state |= BUTTON_LEFT;
+        }
+        if is_key_down(KeyCode::Right) {
+            state |= BUTTON_RIGHT;
+        }
+
+        nes.set_controller_state(0, state);
+
         // Clock until a frame completes
         let start_frame = nes.bus().ppu.frame();
         while nes.bus().ppu.frame() == start_frame {

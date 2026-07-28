@@ -39,6 +39,10 @@ impl Nes {
         Ok(())
     }
 
+    pub fn set_controller_state(&mut self, controller: usize, state: u8) {
+        self.bus.set_controller_state(controller, state);
+    }
+
     /// Simulates pressing the reset button.
     pub fn reset(&mut self) {
         self.cpu.reset(&self.bus);

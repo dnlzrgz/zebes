@@ -10,6 +10,7 @@ readme = "README.md"
 keywords = ["nes", "emulator", "tui", "debugger"]
 categories = ["emulators", "command-line-utilities"]
 publish = false
+exclude = ["tests/roms/*"]
 
 
 [dependencies]
