@@ -1,7 +1,7 @@
 mod mapper;
 mod mapper000;
 
-pub use mapper::Mapper;
+pub use mapper::{Mapper, Mirroring};
 use mapper000::Mapper000;
 use std::{cell::RefCell, rc::Rc};
 
@@ -25,7 +25,11 @@ pub struct Cartridge {
 impl Default for Cartridge {
     fn default() -> Self {
         Self {
-            mapper: Box::new(Mapper000::new(Vec::new(), Vec::new())),
+            mapper: Box::new(Mapper000::new(
+                Vec::new(),
+                Vec::new(),
+                Mirroring::Horizontal,
+            )),
         }
     }
 }
@@ -47,6 +51,11 @@ impl Cartridge {
         let flags7 = data[7];
         let has_trainer_data = flags6 & 0b0000_0100 != 0;
         let mapper_id = (flags7 & 0xF0) | (flags6 >> 4);
+        let mirroring = if flags6 & 0b0000_0001 != 0 {
+            Mirroring::Vertical
+        } else {
+            Mirroring::Horizontal
+        };
 
         let mut offset = HEADER_SIZE;
         if has_trainer_data {
@@ -61,7 +70,7 @@ impl Cartridge {
         let chr_rom = data[offset..offset + chr_size].to_vec();
 
         let mapper = match mapper_id {
-            0 => Box::new(Mapper000::new(prg_rom, chr_rom)),
+            0 => Box::new(Mapper000::new(prg_rom, chr_rom, mirroring)),
             _ => return Err(format!("mapper {mapper_id} not supported yet")),
         };
 
@@ -82,6 +91,10 @@ impl Cartridge {
 
     pub fn ppu_write(&mut self, address: u16, data: u8) {
         self.mapper.ppu_write(address, data);
+    }
+
+    pub fn mirroring(&self) -> Mirroring {
+        self.mapper.mirroring()
     }
 }
 

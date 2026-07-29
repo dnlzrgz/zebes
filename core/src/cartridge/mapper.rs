@@ -12,4 +12,14 @@ pub trait Mapper {
 
     /// Handles PPU-side write into the mapper's space.
     fn ppu_write(&mut self, address: u16, data: u8);
+
+    /// Returns the mirroring configuration.
+    fn mirroring(&self) -> Mirroring;
+}
+
+/// Nametable mirroring configuration.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Mirroring {
+    Horizontal,
+    Vertical,
 }

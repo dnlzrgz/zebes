@@ -1,11 +1,4 @@
-use crate::cartridge::SharedCartridge;
-
-/// Nametable mirroring mode set by the cartridge.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Mirroring {
-    Horizontal,
-    Vertical,
-}
+use crate::cartridge::{Mirroring, SharedCartridge};
 
 /// Represents the PPU's address space.
 pub struct PpuBus {
@@ -14,9 +7,6 @@ pub struct PpuBus {
 
     /// Palette RAM.
     palette: [u8; 32],
-
-    /// Represents how the two extra logical nametables are wired.
-    mirroring: Mirroring,
 
     /// Shared handle to the cartridge.
     cartridge: SharedCartridge,
@@ -27,7 +17,6 @@ impl Default for PpuBus {
         Self {
             nametables: [0; 0x0800],
             palette: [0; 32],
-            mirroring: Mirroring::Horizontal,
             cartridge: SharedCartridge::default(),
         }
     }
@@ -75,7 +64,7 @@ impl PpuBus {
         let offset = (address % 0x0400) as usize;
 
         // TODO: check mirroring behavior.
-        let physical_table = match self.mirroring {
+        let physical_table = match self.cartridge.borrow().mirroring() {
             Mirroring::Horizontal => table / 2,
             Mirroring::Vertical => table % 2,
         };
