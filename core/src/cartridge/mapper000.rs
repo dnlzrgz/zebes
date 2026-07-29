@@ -21,7 +21,7 @@ impl Mapper000 {
 impl Mapper for Mapper000 {
     fn cpu_read(&self, address: u16) -> Option<u8> {
         match address {
-            0x8000..=0xFFFF => {
+            0x8000..=0xFFFF if !self.prg_rom.is_empty() => {
                 let idx = (address - 0x8000) as usize % self.prg_rom.len();
                 Some(self.prg_rom[idx])
             }

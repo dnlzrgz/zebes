@@ -22,4 +22,6 @@ pub trait Mapper {
 pub enum Mirroring {
     Horizontal,
     Vertical,
+    SingleScreenLower,
+    SingleScreenUpper,
 }

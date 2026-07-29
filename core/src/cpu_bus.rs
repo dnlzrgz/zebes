@@ -66,9 +66,7 @@ impl CpuBus {
                 _ => 0x00,
             }, // APU + I/O
             0x4018..=0x401F => 0x00,                                  // APU + I/O (test mode)
-            0x4020..=0x5FFF => 0x00,                                  // Cartridge expansion
-            0x6000..=0x7FFF => 0x00,                                  // Cartridge SRAM/PGR-RAM
-            0x8000..=0xFFFF => self.cartridge.borrow().cpu_read(address).unwrap_or(0x00), // PRG-ROM
+            0x4020..=0xFFFF => self.cartridge.borrow().cpu_read(address).unwrap_or(0x00), // Cartridge
         }
     }
 
@@ -78,9 +76,7 @@ impl CpuBus {
             0x2000..=0x3FFF => self.ppu.cpu_peek(address),            // PPU
             0x4000..=0x4017 => 0x00,                                  // APU + I/O
             0x4018..=0x401F => 0x00,                                  // APU + I/O (test mode)
-            0x4020..=0x5FFF => 0x00,                                  // Cartridge expansion
-            0x6000..=0x7FFF => 0x00,                                  // Cartridge SRAM/PGR-RAM
-            0x8000..=0xFFFF => self.cartridge.borrow().cpu_read(address).unwrap_or(0x00), // PRG-ROM
+            0x4020..=0xFFFF => self.cartridge.borrow().cpu_read(address).unwrap_or(0x00), // Cartridge
         }
     }
 
@@ -99,9 +95,7 @@ impl CpuBus {
                 _ => {}
             }, // APU + I/O
             0x4018..=0x401F => {} // APU + I/O (test mode)
-            0x4020..=0x5FFF => {} // Cartridge expansion
-            0x6000..=0x7FFF => {} // Cartridge SRAM/PGR-RAM
-            0x8000..=0xFFFF => self.cartridge.borrow_mut().cpu_write(address, data), // PRG-ROM
+            0x4020..=0xFFFF => self.cartridge.borrow_mut().cpu_write(address, data), // Cartridge
         }
     }
 

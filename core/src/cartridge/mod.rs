@@ -1,8 +1,10 @@
 mod mapper;
 mod mapper000;
+mod mapper001;
+mod mapper002;
+mod mapper003;
 
 pub use mapper::{Mapper, Mirroring};
-use mapper000::Mapper000;
 use std::{cell::RefCell, rc::Rc};
 
 /// Every valid iNES file should start with this exact 4-byte signature.
@@ -16,6 +18,7 @@ const TRAINER_SIZE: usize = 512;
 /// PRG-ROM and CHR-ROM sizes are given in the header as a bank count instead of raw bytes.
 const PRG_BANK_SIZE: usize = 16 * 1024;
 const CHR_BANK_SIZE: usize = 8 * 1024;
+const CHR_RAM_SIZE: usize = 8 * 1024;
 
 /// Represents a loaded NES cartridge.
 pub struct Cartridge {
@@ -25,7 +28,7 @@ pub struct Cartridge {
 impl Default for Cartridge {
     fn default() -> Self {
         Self {
-            mapper: Box::new(Mapper000::new(
+            mapper: Box::new(mapper000::Mapper000::new(
                 Vec::new(),
                 Vec::new(),
                 Mirroring::Horizontal,
@@ -66,11 +69,18 @@ impl Cartridge {
         let prg_rom = data[offset..offset + prg_size].to_vec();
         offset += prg_size;
 
-        let chr_size = chr_banks * CHR_BANK_SIZE;
-        let chr_rom = data[offset..offset + chr_size].to_vec();
+        let chr_rom = if chr_banks == 0 {
+            vec![0; CHR_RAM_SIZE]
+        } else {
+            let chr_size = chr_banks * CHR_BANK_SIZE;
+            data[offset..offset + chr_size].to_vec()
+        };
 
-        let mapper = match mapper_id {
-            0 => Box::new(Mapper000::new(prg_rom, chr_rom, mirroring)),
+        let mapper: Box<dyn Mapper> = match mapper_id {
+            0 => Box::new(mapper000::Mapper000::new(prg_rom, chr_rom, mirroring)),
+            1 => Box::new(mapper001::Mapper001::new(prg_rom, chr_rom, mirroring)),
+            2 => Box::new(mapper002::Mapper002::new(prg_rom, chr_rom, mirroring)),
+            3 => Box::new(mapper003::Mapper003::new(prg_rom, chr_rom, mirroring)),
             _ => return Err(format!("mapper {mapper_id} not supported yet")),
         };
 

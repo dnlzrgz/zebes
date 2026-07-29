@@ -67,6 +67,8 @@ impl PpuBus {
         let physical_table = match self.cartridge.borrow().mirroring() {
             Mirroring::Horizontal => table / 2,
             Mirroring::Vertical => table % 2,
+            Mirroring::SingleScreenLower => 0,
+            Mirroring::SingleScreenUpper => 1,
         };
 
         physical_table as usize * 0x0400 + offset
