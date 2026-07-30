@@ -25,7 +25,7 @@ pub struct Cpu {
     status: u8,
     /// Number of clock cycles remaining for the current instruction
     /// that is being executed.
-    cycles: u8,
+    cycles: u16,
     total_cycles: u64,
 }
 
@@ -78,7 +78,16 @@ impl Cpu {
         if self.cycles == 0 {
             let opcode = bus.read(self.pc);
             self.pc = self.pc.wrapping_add(1);
-            self.cycles = self.execute(opcode, bus);
+            self.cycles = self.execute(opcode, bus) as u16;
+        }
+
+        // OAM data penalty.
+        if bus.dma_pending {
+            bus.dma_pending = false;
+
+            // DMA takes 513 cycles.
+            let alignment_cycle = if self.total_cycles % 2 == 1 { 1 } else { 0 };
+            self.cycles += 513 + alignment_cycle;
         }
 
         self.cycles = self.cycles.wrapping_sub(1);
@@ -223,7 +232,7 @@ impl Cpu {
         self.status
     }
 
-    pub fn cycles(&self) -> u8 {
+    pub fn cycles(&self) -> u16 {
         self.cycles
     }
 

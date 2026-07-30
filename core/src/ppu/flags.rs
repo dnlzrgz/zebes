@@ -20,12 +20,6 @@ pub const REG_PPUDATA: u16 = 0x0007;
 // PPUCTRL - Miscellaneous settings ($2000 write)
 //
 
-/// Base nametable selects bit 0.
-pub const CTRL_NAMETABLE_LO: u8 = 1 << 0;
-
-/// Base nametable selects bit 1.
-pub const CTRL_NAMETABLE_HI: u8 = 1 << 1;
-
 /// VRAM address increment per CPU read/write of PPUDATA.
 pub const CTRL_VRAM_INCREMENT: u8 = 1 << 2;
 
@@ -39,6 +33,7 @@ pub const CTRL_BACKGROUND_PATTERN_TABLE: u8 = 1 << 4;
 pub const CTRL_SPRITE_SIZE: u8 = 1 << 5;
 
 /// PPU master/slave select.
+#[allow(dead_code)]
 pub const CTRL_MASTER_SLAVE: u8 = 1 << 6;
 
 /// Create NMI at the start of a Vblank.
@@ -86,11 +81,6 @@ pub const STATUS_SPRITE_ZERO_HIT: u8 = 1 << 6;
 pub const STATUS_VBLANK: u8 = 1 << 7;
 
 #[inline]
-pub fn base_nametable(ctrl: u8) -> u8 {
-    ctrl & (CTRL_NAMETABLE_LO | CTRL_NAMETABLE_HI)
-}
-
-#[inline]
 pub fn vram_increment(ctrl: u8) -> u16 {
     if contains(ctrl, CTRL_VRAM_INCREMENT) {
         32
@@ -134,15 +124,6 @@ pub fn rendering_enabled(mask: u8) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn base_nametable_extracts_low_two_bits_only() {
-        assert_eq!(base_nametable(0b0000_0000), 0);
-        assert_eq!(base_nametable(CTRL_NAMETABLE_LO), 1);
-        assert_eq!(base_nametable(CTRL_NAMETABLE_HI), 2);
-        assert_eq!(base_nametable(CTRL_NAMETABLE_LO | CTRL_NAMETABLE_HI), 3);
-        assert_eq!(base_nametable(CTRL_NMI_ENABLE | CTRL_NAMETABLE_LO), 1);
-    }
 
     #[test]
     fn vram_increment_selects_1_or_32() {

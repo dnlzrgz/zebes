@@ -7,6 +7,7 @@ pub struct CpuBus {
     pub controllers: [u8; 2],
     controller_shift: [u8; 2],
     controller_strobe: bool,
+    pub dma_pending: bool,
 }
 
 impl Default for CpuBus {
@@ -18,6 +19,7 @@ impl Default for CpuBus {
             controllers: [0; 2],
             controller_shift: [0; 2],
             controller_strobe: false,
+            dma_pending: false,
         }
     }
 }
@@ -85,6 +87,20 @@ impl CpuBus {
             0x0000..=0x1FFF => self.ram[(address & 0x07FF) as usize] = data, // RAM
             0x2000..=0x3FFF => self.ppu.cpu_write(address, data),            // PPU
             0x4000..=0x4017 => match address {
+                0x4014 => {
+                    let mut buffer = [0u8; 256];
+                    let page = (data as u16) << 8;
+
+                    for i in 0..256 {
+                        buffer[i as usize] = self.read(page + i);
+                    }
+
+                    for &byte in &buffer {
+                        self.ppu.cpu_write(0x2004, byte);
+                    }
+
+                    self.dma_pending = true;
+                }
                 0x4016 => {
                     self.controller_strobe = data & 1 == 1;
                     if self.controller_strobe {

@@ -2,6 +2,7 @@ mod background;
 mod flags;
 mod palette;
 pub mod ppu_bus;
+mod sprites;
 
 use crate::bits::{contains, set};
 use crate::ppu::flags::*;
@@ -63,6 +64,15 @@ pub struct Ppu {
     next_tile_lo: u8,
     next_tile_hi: u8,
 
+    secondary_oam: [u8; 32],
+    secondary_oam_count: u8,
+
+    sprite_zero_in_range: bool,
+    sprite_pattern_lo: [u8; 8],
+    sprite_pattern_hi: [u8; 8],
+    sprite_attr: [u8; 8],
+    sprite_x_counter: [u8; 8],
+
     frame_buffer: Box<Framebuffer>,
 
     // PPU-owned bus.
@@ -94,6 +104,13 @@ impl Default for Ppu {
             next_tile_attr: 0,
             next_tile_lo: 0,
             next_tile_hi: 0,
+            secondary_oam: [0xFF; 32],
+            secondary_oam_count: 0,
+            sprite_zero_in_range: false,
+            sprite_pattern_lo: [0; 8],
+            sprite_pattern_hi: [0; 8],
+            sprite_attr: [0; 8],
+            sprite_x_counter: [0xFF; 8],
             frame_buffer: Box::new([Rgb::default(); SCREEN_WIDTH * SCREEN_HEIGHT]),
             bus: PpuBus::new(),
         }
@@ -110,11 +127,13 @@ impl Ppu {
         self
     }
 
+    /// Advance the PPU by one cycle.
     pub fn clock(&mut self) {
         if rendering_enabled(self.mask) && (self.scanline < 240 || self.scanline == 261) {
             if (1..=256).contains(&self.cycle) || (321..=336).contains(&self.cycle) {
                 if self.scanline < 240 && (1..=256).contains(&self.cycle) {
                     self.render_pixel();
+                    self.tick_sprites();
                 }
                 self.shift_register();
                 self.fetch_background_tile();
@@ -122,10 +141,19 @@ impl Ppu {
 
             if self.cycle == 256 {
                 self.increment_y();
+                self.check_sprites();
             }
 
             if self.cycle == 257 {
                 self.copy_horizontal_bits();
+            }
+
+            if (257..=320).contains(&self.cycle) {
+                self.oam_address = 0;
+            }
+
+            if self.cycle == 320 {
+                self.fetch_sprites();
             }
 
             if self.scanline == 261 && (280..=304).contains(&self.cycle) {
@@ -157,6 +185,7 @@ impl Ppu {
         }
     }
 
+    /// Return and clear a pending NMI request.
     pub fn take_nmi(&mut self) -> bool {
         let requested = self.nmi_requested;
         self.nmi_requested = false;

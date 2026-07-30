@@ -1,8 +1,11 @@
 use crate::{
-    bits::contains,
+    bits::{contains, set},
     ppu::{
         Ppu, SCREEN_HEIGHT, SCREEN_WIDTH,
-        flags::{MASK_SHOW_BACKGROUND, background_pattern_table},
+        flags::{
+            MASK_SHOW_BACKGROUND, MASK_SHOW_BACKGROUND_LEFT, STATUS_SPRITE_ZERO_HIT,
+            background_pattern_table,
+        },
         palette::PALETTE,
     },
 };
@@ -176,45 +179,226 @@ impl Ppu {
         }
     }
 
-    /// Produces the background pixel for the current screen position.
+    /// Render the necessary pixel (background + sprite) for the current screen position.
     pub fn render_pixel(&mut self) {
-        // Fine X scrolling does not physically shift the background registers. Instead, it selects
-        // which bit position should be sampled from the 16-bit shift registers.
-        //
-        // x = 0 samples the most significant bit. x = 7 samples the eight bit.
+        let x = (self.cycle - 1) as usize;
+        let y = self.scanline as usize;
+
         let bit_mux = 0x8000 >> self.x;
 
-        // The background pattern is stored in two bitplanes. Each shift register contributes one
-        // bit. Together, they produce the 2-bit pixel value within the selected background palette.
         let pattern_lo = ((self.bg_pattern_shift_lo & bit_mux) != 0) as u8;
         let pattern_hi = ((self.bg_pattern_shift_hi & bit_mux) != 0) as u8;
-        let pixel = (pattern_hi << 1) | pattern_lo;
+        let bg_pixel = (pattern_hi << 1) | pattern_lo;
 
-        // The attribute bits are shifted in parallel with the pattern bits. These two registers
-        // provide the upper two bits of the palette address, selecting one of the four background palettes.
         let attr_lo = ((self.bg_attr_shift_lo & bit_mux) != 0) as u8;
         let attr_hi = ((self.bg_attr_shift_hi & bit_mux) != 0) as u8;
-        let palette = (attr_hi << 1) | attr_lo;
+        let bg_palette = (attr_hi << 1) | attr_lo;
 
-        // The pixel value 0 is always transparent with respect to the selected background palette
-        // and instead uses the universal background color stored at $3F00.
-        let address = if !contains(self.mask, MASK_SHOW_BACKGROUND) || pixel == 0 {
-            0x3F00
-        } else {
-            0x3F00 + (palette as u16 * 4) + pixel as u16
+        let bg_opaque = contains(self.mask, MASK_SHOW_BACKGROUND)
+            && bg_pixel != 0
+            && (x >= 8 || contains(self.mask, MASK_SHOW_BACKGROUND_LEFT));
+
+        let sprite = self.sprite_pixel(x);
+
+        let address = match (&sprite, bg_opaque) {
+            (Some(s), false) => 0x3F10 + s.palette as u16 * 4 + s.pixel as u16,
+            (None, false) => 0x3F00,
+            (None, true) => 0x3F00 + bg_palette as u16 * 4 + bg_pixel as u16,
+            (Some(s), true) => {
+                if s.is_sprite_zero && x != 255 {
+                    set(&mut self.status, STATUS_SPRITE_ZERO_HIT, true);
+                }
+
+                if s.hidden {
+                    0x3F00 + bg_palette as u16 * 4 + bg_pixel as u16
+                } else {
+                    0x3F10 + s.palette as u16 * 4 + s.pixel as u16
+                }
+            }
         };
 
         let color_index = self.bus.read(address) & 0x3F;
 
-        // Convert the current scanline/cycle into a framebuffer index. Visible pixels are generated
-        // during cycles 1-256 of visible scanlines (0-239). Cycle 1 corresponds to the leftmost pixel.
-        let x = (self.cycle - 1) as usize;
-        let y = self.scanline as usize;
-
-        // Translate the NES palette index into a 24-bit RGB color and write the finished pixel into
-        // the emulator's framebuffer.
         if x < SCREEN_WIDTH && y < SCREEN_HEIGHT {
             self.frame_buffer[y * SCREEN_WIDTH + x] = PALETTE[color_index as usize];
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn increment_coarse_x_wraps_at_31_and_toggles_nametable() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x001F; // coarse X = 31
+
+        ppu.increment_coarse_x();
+
+        assert_eq!(ppu.v & 0x001F, 0); // coarse X wrapped to 0
+        assert_eq!(ppu.v & 0x0400, 0x0400); // horizontal nametable bit toggled
+    }
+
+    #[test]
+    fn increment_coarse_x_does_not_toggle_nametable_below_31() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x0005;
+
+        ppu.increment_coarse_x();
+
+        assert_eq!(ppu.v & 0x001F, 6);
+        assert_eq!(ppu.v & 0x0400, 0);
+    }
+
+    #[test]
+    fn increment_y_bumps_fine_y_when_not_at_max() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x0000; // fine Y = 0
+
+        ppu.increment_y();
+
+        assert_eq!((ppu.v >> 12) & 0x07, 1);
+    }
+
+    #[test]
+    fn increment_y_wraps_coarse_y_at_29_and_toggles_nametable() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x7000 | (29 << 5); // fine Y = 7, coarse Y = 29
+
+        ppu.increment_y();
+
+        assert_eq!((ppu.v >> 12) & 0x07, 0); // fine Y wrapped
+        assert_eq!((ppu.v & 0x03E0) >> 5, 0); // coarse Y wrapped
+        assert_eq!(ppu.v & 0x0800, 0x0800); // vertical nametable toggled
+    }
+
+    #[test]
+    fn increment_y_wraps_coarse_y_at_31_without_toggling_nametable() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x7000 | (31 << 5);
+
+        ppu.increment_y();
+
+        assert_eq!((ppu.v & 0x03E0) >> 5, 0);
+        assert_eq!(ppu.v & 0x0800, 0);
+    }
+
+    #[test]
+    fn copy_horizontal_bits_copies_coarse_x_and_nametable_only() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x7BE0; // everything except horizontal bits set
+        ppu.t = 0x041F; // only horizontal bits set
+
+        ppu.copy_horizontal_bits();
+
+        assert_eq!(ppu.v, 0x7BE0 | 0x041F);
+    }
+
+    #[test]
+    fn copy_vertical_bits_copies_fine_y_coarse_y_and_nametable_only() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x041F; // horizontal bits set
+        ppu.t = 0x7BE0; // vertical bits set
+
+        ppu.copy_vertical_bits();
+
+        assert_eq!(ppu.v, 0x041F | 0x7BE0);
+    }
+
+    #[test]
+    fn reload_shift_registers_loads_low_byte_only() {
+        let mut ppu = Ppu::new();
+        ppu.bg_pattern_shift_lo = 0xAB00;
+        ppu.bg_pattern_shift_hi = 0xCD00;
+        ppu.next_tile_lo = 0x11;
+        ppu.next_tile_hi = 0x22;
+        ppu.next_tile_attr = 0b10;
+
+        ppu.reload_shift_registers();
+
+        assert_eq!(ppu.bg_pattern_shift_lo, 0xAB11);
+        assert_eq!(ppu.bg_pattern_shift_hi, 0xCD22);
+        assert_eq!(ppu.bg_attr_shift_lo & 0x00FF, 0x00); // attr bit 0 clear -> 0x00 fill
+        assert_eq!(ppu.bg_attr_shift_hi & 0x00FF, 0xFF); // attr bit 1 set -> 0xFF fill
+    }
+
+    #[test]
+    fn shift_register_shifts_all_four_registers_left() {
+        let mut ppu = Ppu::new();
+        ppu.bg_pattern_shift_lo = 0x8001;
+        ppu.bg_pattern_shift_hi = 0x0001;
+        ppu.bg_attr_shift_lo = 0x0001;
+        ppu.bg_attr_shift_hi = 0x0001;
+
+        ppu.shift_register();
+
+        assert_eq!(ppu.bg_pattern_shift_lo, 0x0002);
+        assert_eq!(ppu.bg_pattern_shift_hi, 0x0002);
+        assert_eq!(ppu.bg_attr_shift_lo, 0x0002);
+        assert_eq!(ppu.bg_attr_shift_hi, 0x0002);
+    }
+
+    #[test]
+    fn fetch_nametable_byte_reads_from_current_v_address() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x0005; // low 12 bits -> nametable offset 5
+        ppu.bus.write(0x2005, 0x42);
+
+        ppu.fetch_nametable_byte();
+
+        assert_eq!(ppu.next_tile_id, 0x42);
+    }
+
+    #[test]
+    fn fetch_attribute_byte_selects_top_left_quadrant() {
+        let mut ppu = Ppu::new();
+        // coarse X = 0, coarse Y = 0 -> bit1 of both clear -> shift 0
+        ppu.v = 0 | (0 << 5);
+        let address = 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07);
+        ppu.bus.write(address, 0b11_10_01_00);
+
+        ppu.fetch_attribute_byte();
+
+        assert_eq!(ppu.next_tile_attr, 0b00); // bits 1:0 of the byte
+    }
+
+    #[test]
+    fn fetch_attribute_byte_selects_top_right_quadrant() {
+        let mut ppu = Ppu::new();
+        // coarse X = 2 (bit1 set), coarse Y = 0 (bit1 clear) -> shift 2
+        ppu.v = 2 | (0 << 5);
+        let address = 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07);
+        ppu.bus.write(address, 0b11_10_01_00);
+
+        ppu.fetch_attribute_byte();
+
+        assert_eq!(ppu.next_tile_attr, 0b01); // bits 3:2
+    }
+
+    #[test]
+    fn fetch_attribute_byte_selects_bottom_left_quadrant() {
+        let mut ppu = Ppu::new();
+        // coarse X = 0 (bit1 clear), coarse Y = 2 (bit1 set) -> shift 4
+        ppu.v = 0 | (2 << 5);
+        let address = 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07);
+        ppu.bus.write(address, 0b11_10_01_00);
+
+        ppu.fetch_attribute_byte();
+
+        assert_eq!(ppu.next_tile_attr, 0b10); // bits 5:4
+    }
+
+    #[test]
+    fn fetch_attribute_byte_selects_bottom_right_quadrant() {
+        let mut ppu = Ppu::new();
+        // coarse X = 2, coarse Y = 2 -> both bit1 set -> shift 6
+        ppu.v = 2 | (2 << 5);
+        let address = 0x23C0 | (ppu.v & 0x0C00) | ((ppu.v >> 4) & 0x38) | ((ppu.v >> 2) & 0x07);
+        ppu.bus.write(address, 0b11_10_01_00);
+
+        ppu.fetch_attribute_byte();
+
+        assert_eq!(ppu.next_tile_attr, 0b11); // bits 7:6
     }
 }
