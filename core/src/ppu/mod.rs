@@ -209,6 +209,7 @@ impl Ppu {
             flags::REG_PPUDATA => {
                 let result = if self.v >= 0x3F00 {
                     // Bypass the buffer and returns immediately.
+                    self.read_buffer = self.bus.read(self.v - 0x1000);
                     self.bus.read(self.v)
                 } else {
                     let buffered = self.read_buffer;
