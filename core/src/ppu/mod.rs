@@ -306,4 +306,36 @@ impl Ppu {
     pub fn framebuffer(&self) -> &Framebuffer {
         &self.frame_buffer
     }
+
+    pub fn ctrl(&self) -> u8 {
+        self.ctrl
+    }
+
+    pub fn mask(&self) -> u8 {
+        self.mask
+    }
+
+    pub fn status(&self) -> u8 {
+        self.status
+    }
+
+    pub fn v(&self) -> u16 {
+        self.v
+    }
+
+    pub fn t(&self) -> u16 {
+        self.t
+    }
+
+    pub fn x(&self) -> u8 {
+        self.x
+    }
+
+    pub fn w(&self) -> bool {
+        self.w
+    }
+
+    pub fn oam(&self) -> &[u8; 256] {
+        &self.oam
+    }
 }

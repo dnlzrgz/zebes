@@ -6,7 +6,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Borders, Paragraph},
+    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table},
 };
 
 use zebes_core::{
@@ -18,10 +18,17 @@ use zebes_debugger::disassembler::disassemble;
 // 341 cycles * 262 scanlines / 3 PPU-cycles-per-CPU-step.
 const CPU_CYCLES_PER_FRAME: usize = 29_780;
 
+enum ViewMode {
+    Cpu,
+    Ppu,
+}
+
 struct App {
     nes: Nes,
     mem_base: u16,
+    _oam_base: usize,
     running: bool,
+    view_mode: ViewMode,
 }
 
 impl App {
@@ -29,7 +36,9 @@ impl App {
         Self {
             nes,
             mem_base: 0,
+            _oam_base: 0,
             running: false,
+            view_mode: ViewMode::Cpu,
         }
     }
 }
@@ -84,6 +93,12 @@ fn handle_key(app: &mut App, code: KeyCode) -> bool {
         KeyCode::Char(' ') => app.nes.clock(),
         KeyCode::Enter => app.running = !app.running,
         KeyCode::Char('r') => app.nes.reset(),
+        KeyCode::Char('v') => {
+            app.view_mode = match app.view_mode {
+                ViewMode::Cpu => ViewMode::Ppu,
+                ViewMode::Ppu => ViewMode::Cpu,
+            }
+        }
         KeyCode::Up => app.mem_base = app.mem_base.saturating_sub(16),
         KeyCode::Down => app.mem_base = app.mem_base.saturating_add(16),
         _ => {}
@@ -97,25 +112,45 @@ fn render(frame: &mut Frame, app: &App) {
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .areas(frame.area());
 
-    let [left, right] = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-        .areas(main);
+    match app.view_mode {
+        ViewMode::Cpu => {
+            let [left, right] = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+                .areas(main);
 
-    let [top_left, bottom_left] = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
-        .areas(left);
+            let [top_left, bottom_left] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+                .areas(left);
 
-    let [top_right, bottom_right] = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
-        .areas(right);
+            let [top_right, bottom_right] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
+                .areas(right);
 
-    render_ppu(frame, top_left, app);
-    render_memory(frame, bottom_left, app);
-    render_cpu(frame, top_right, app);
-    render_disassembly(frame, bottom_right, app);
+            render_ppu(frame, top_left, app);
+            render_memory(frame, bottom_left, app);
+            render_cpu(frame, top_right, app);
+            render_disassembly(frame, bottom_right, app);
+        }
+        ViewMode::Ppu => {
+            let [left, right] = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([Constraint::Percentage(60), Constraint::Percentage(40)])
+                .areas(main);
+
+            let [top_right, bottom_right] = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(35), Constraint::Percentage(65)])
+                .areas(right);
+
+            render_ppu(frame, left, app);
+            render_ppu_registers(frame, top_right, app);
+            render_oam(frame, bottom_right, app);
+        }
+    }
+
     render_footer(frame, footer, app);
 }
 
@@ -196,10 +231,9 @@ fn render_memory(frame: &mut Frame, area: Rect, app: &App) {
     frame.render_widget(Paragraph::new(lines).block(block("memory".into())), area);
 }
 
-/// Displays the current CPU state.
+/// Displays the current CPU states.
 fn render_cpu(frame: &mut Frame, area: Rect, app: &App) {
     let cpu = app.nes.cpu();
-    let bus = app.nes.bus();
     let p = cpu.status();
     let flag = |mask: u8, ch: char| if p & mask != 0 { ch } else { '_' };
     let flags = format!(
@@ -226,11 +260,6 @@ fn render_cpu(frame: &mut Frame, area: Rect, app: &App) {
         Line::from(format!("SP: ${:02X}", cpu.sp())),
         Line::from(""),
         Line::from(format!(
-            "PPU: {:>3},{:>3}",
-            bus.ppu.scanline(),
-            bus.ppu.cycle()
-        )),
-        Line::from(format!(
             "CYC: {}  (rem: {})",
             cpu.total_cycles(),
             cpu.cycles()
@@ -238,6 +267,69 @@ fn render_cpu(frame: &mut Frame, area: Rect, app: &App) {
     ];
 
     frame.render_widget(Paragraph::new(lines).block(block("Cpu".into())), area);
+}
+
+/// Displays the current Ppu state.
+fn render_ppu_registers(frame: &mut Frame, area: Rect, app: &App) {
+    let ppu = &app.nes.bus().ppu;
+
+    let lines = vec![
+        Line::from(format!("CTRL:   ${:02X}", ppu.ctrl())),
+        Line::from(format!("MASK:   ${:02X}", ppu.mask())),
+        Line::from(format!("STATUS: ${:02X}", ppu.status())),
+        Line::from(""),
+        Line::from(format!(
+            "POS: {:>3}, {:>3} (Scanline, Cycle)",
+            ppu.scanline(),
+            ppu.cycle()
+        )),
+        Line::from(""),
+        Line::from(format!("V (Current VRAM): ${:04X}", ppu.v())),
+        Line::from(format!("T (Temp VRAM):    ${:04X}", ppu.t())),
+        Line::from(format!("X (Fine X):       ${:02X}", ppu.x())),
+        Line::from(format!(
+            "W (Write Toggle): {}",
+            if ppu.w() { "2nd" } else { "1st" }
+        )),
+    ];
+
+    frame.render_widget(Paragraph::new(lines).block(block("Registers".into())), area);
+}
+
+fn render_oam(frame: &mut Frame, area: Rect, app: &App) {
+    let oam = app.nes.bus().ppu.oam();
+    let mut rows = Vec::new();
+
+    for i in 0..64 {
+        let base = i * 4;
+        let y = oam[base];
+        let tile = oam[base + 1];
+        let attr = oam[base + 2];
+        let x = oam[base + 3];
+
+        rows.push(Row::new(vec![
+            Cell::from(format!("{:02X}", i)),
+            Cell::from(format!("{:02X}", y)),
+            Cell::from(format!("{:02X}", tile)),
+            Cell::from(format!("{:02X}", attr)),
+            Cell::from(format!("{:02X}", x)),
+        ]));
+    }
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Length(4),
+            Constraint::Length(4),
+            Constraint::Length(6),
+            Constraint::Length(6),
+            Constraint::Length(4),
+        ],
+    )
+    .header(Row::new(vec!["ID", "Y", "TILE", "ATTR", "X"]))
+    .block(block("OAM (Sprites)".into()));
+
+    frame.render_widget(table, area);
 }
 
 /// Disasemble instructions beginning at the current program counter (`pc`).
@@ -284,8 +376,9 @@ fn render_disassembly(frame: &mut Frame, area: Rect, app: &App) {
 /// Shows the current execution mode as well as the available keybindings.
 fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
     let mode = if app.running { "RUN" } else { "STEP" };
-    let text =
-        format!("[{mode}] [enter]:run/pause  [space]:step  [r]:reset  ↑↓:scroll mem  q:quit");
+    let text = format!(
+        "[{mode}] [enter]:run/pause  [space]:step  [r]:reset  [v]:toggle view  ↑↓:scroll mem  q:quit"
+    );
     frame.render_widget(
         Paragraph::new(text).style(Style::default().fg(Color::Gray)),
         area,
