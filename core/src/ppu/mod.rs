@@ -174,6 +174,18 @@ impl Ppu {
             set(&mut self.status, STATUS_SPRITE_OVERFLOW, false);
         }
 
+        // NTSC odd-frame skip
+        if self.scanline == 261
+            && self.cycle == 339
+            && rendering_enabled(self.mask)
+            && !self.frame.is_multiple_of(2)
+        {
+            self.cycle = 0;
+            self.scanline = 0;
+            self.frame = self.frame.wrapping_add(1);
+            return;
+        }
+
         self.cycle += 1;
         if self.cycle > 340 {
             self.cycle = 0;
