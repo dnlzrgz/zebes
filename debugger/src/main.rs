@@ -1,4 +1,7 @@
-use std::{env, fs, io, process};
+use std::{
+    env, fs, io, process,
+    time::{Duration, Instant},
+};
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 use ratatui::{
@@ -15,8 +18,8 @@ use zebes_core::{
 };
 use zebes_debugger::disassembler::disassemble;
 
-// 341 cycles * 262 scanlines / 3 PPU-cycles-per-CPU-step.
-const CPU_CYCLES_PER_FRAME: usize = 29_780;
+// Real NES/PPU frame rate (NTSC).
+const TARGET_FRAME_TIME: Duration = Duration::from_micros(16_639); // ~60 Hz
 
 enum ViewMode {
     Cpu,
@@ -26,7 +29,6 @@ enum ViewMode {
 struct App {
     nes: Nes,
     mem_base: u16,
-    _oam_base: usize,
     running: bool,
     view_mode: ViewMode,
 }
@@ -36,7 +38,6 @@ impl App {
         Self {
             nes,
             mem_base: 0,
-            _oam_base: 0,
             running: false,
             view_mode: ViewMode::Cpu,
         }
@@ -64,25 +65,38 @@ fn main() -> color_eyre::Result<()> {
 }
 
 fn run(mut terminal: DefaultTerminal, mut app: App) -> io::Result<()> {
+    let mut last_tick = Instant::now();
+
     loop {
         terminal.draw(|frame| render(frame, &app))?;
 
-        if app.running {
-            if event::poll(std::time::Duration::from_millis(0))? {
-                if let Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press && handle_key(&mut app, key.code) {
-                        break Ok(());
-                    }
-                }
-            }
+        let poll_timeout = if app.running {
+            Duration::from_millis(0)
+        } else {
+            Duration::from_millis(50)
+        };
 
-            for _ in 0..CPU_CYCLES_PER_FRAME {
-                app.nes.clock();
+        if event::poll(poll_timeout)?
+            && let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
+            && handle_key(&mut app, key.code)
+        {
+            return Ok(());
+        }
+
+        if app.running {
+            let now = Instant::now();
+            if now.duration_since(last_tick) >= TARGET_FRAME_TIME {
+                last_tick += TARGET_FRAME_TIME;
+                let start_frame = app.nes.bus().ppu.frame();
+                while app.nes.bus().ppu.frame() == start_frame {
+                    app.nes.clock();
+                }
+            } else {
+                std::thread::sleep(Duration::from_millis(1));
             }
-        } else if let Event::Key(key) = event::read()? {
-            if key.kind == KeyEventKind::Press && handle_key(&mut app, key.code) {
-                break Ok(());
-            }
+        } else {
+            last_tick = Instant::now();
         }
     }
 }
@@ -90,7 +104,17 @@ fn run(mut terminal: DefaultTerminal, mut app: App) -> io::Result<()> {
 fn handle_key(app: &mut App, code: KeyCode) -> bool {
     match code {
         KeyCode::Char('q') | KeyCode::Esc => return true,
-        KeyCode::Char(' ') => app.nes.clock(),
+        KeyCode::Char(' ') => {
+            app.running = false;
+            app.nes.clock();
+        }
+        KeyCode::Char('n') => {
+            app.running = false;
+            let start_pc = app.nes.cpu().pc();
+            while app.nes.cpu().pc() == start_pc {
+                app.nes.clock();
+            }
+        }
         KeyCode::Enter => app.running = !app.running,
         KeyCode::Char('r') => app.nes.reset(),
         KeyCode::Char('v') => {
@@ -219,12 +243,10 @@ fn render_memory(frame: &mut Frame, area: Rect, app: &App) {
             Style::default().add_modifier(Modifier::BOLD),
         )];
 
-        let ascii = String::with_capacity(16);
         for col in 0..16u16 {
             let value = bus.peek(row_addr.wrapping_add(col));
             spans.push(Span::raw(format!("{value:02X} ")));
         }
-        spans.push(Span::styled(ascii, Style::default()));
         lines.push(Line::from(spans));
     }
 
@@ -377,7 +399,7 @@ fn render_disassembly(frame: &mut Frame, area: Rect, app: &App) {
 fn render_footer(frame: &mut Frame, area: Rect, app: &App) {
     let mode = if app.running { "RUN" } else { "STEP" };
     let text = format!(
-        "[{mode}] [enter]:run/pause  [space]:step  [r]:reset  [v]:toggle view  ↑↓:scroll mem  q:quit"
+        "[{mode}] [enter]:run/pause  [space]:step cycle [n]: step inst  [r]:reset  [v]:toggle view  ↑↓:scroll mem  q:quit"
     );
     frame.render_widget(
         Paragraph::new(text).style(Style::default().fg(Color::Gray)),
