@@ -1,0 +1,5 @@
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = false
+lto = "thin"

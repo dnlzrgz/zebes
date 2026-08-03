@@ -3,13 +3,7 @@ use zebes_core::controller::*;
 use zebes_core::nes::Nes;
 use zebes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 
-#[macroquad::main("Zebes")]
-async fn main() {
-    let rom_path = std::env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Use: zebes <rom.nes>");
-        std::process::exit(1);
-    });
-
+pub async fn run(rom_path: &str) {
     let rom = std::fs::read(&rom_path)
         .unwrap_or_else(|err| panic!("Failed to read ROM at {rom_path}: {err}"));
 
@@ -96,4 +90,14 @@ async fn main() {
 
         next_frame().await;
     }
+}
+
+#[macroquad::main("Zebes")]
+async fn main() {
+    let rom_path = std::env::args().nth(1).unwrap_or_else(|| {
+        eprintln!("Use: zebes <rom.nes>");
+        std::process::exit(1);
+    });
+
+    run(&rom_path).await;
 }
