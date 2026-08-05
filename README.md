@@ -6,7 +6,7 @@ Zebes is a cross-platform NES emulator written from scratch in Rust for learning
 
 ## Features
 
-- CPU (Ricoh 2A03/MOS 6502 core):
+- CPU (Ricoh 2A03/MOS 6502):
   - All [addressing modes](https://www.nesdev.org/wiki/CPU_addressing_modes).
   - All [official instructions](https://www.nesdev.org/wiki/Instruction_reference).
   - Cycle-accurate timing, including page-crossing, branch cycle penalties, etc.
@@ -15,7 +15,7 @@ Zebes is a cross-platform NES emulator written from scratch in Rust for learning
   - Background rendering with proper scrolling (loopy registers, fine + coarse scroll).
   - Sprite rendering with sprite zero hit, per-scanline sprite evaluation, and sprite overflow flag.
   - OAM DMA.
-  - PPUDATA read buffering, include the palette RAM bypass.
+  - PPUDATA read buffering, including the palette RAM bypass.
   - All four nametable mirroring modes.
   - NTSC odd-frame cycle skip.
 - Controller:
@@ -26,16 +26,16 @@ Zebes is a cross-platform NES emulator written from scratch in Rust for learning
   - [UxROM](https://www.nesdev.org/wiki/UxROM).
   - [CNROM](https://www.nesdev.org/wiki/CNROM).
 
-> [!NOTE]
+> [!note]
 > There is no audio emulation yet (APU), and only the official 6502 instructions set is implemented at the moment. Also, more mappers like MMC3 and MMC5 are WIP.
 
 ## Build
 
 Zebes is organized as a Cargo workspace with three main members:
 
-- `zebes`: frontend built with [macroquad](https://macroquad.rs).
-- `core`: emulator core used by both the frontend and the debugger.
-- `debugger`: a terminal-based debugger built with [ratatui](https://ratatui.rs).
+- [zebes](./zebes/README.md): frontend built with [macroquad](https://macroquad.rs).
+- [core](./core/README.md): emulator core used by both the frontend and the debugger.
+- [debugger](./debugger/README.md): a terminal-based debugger built with [ratatui](https://ratatui.rs).
 
 ### Requirements
 
@@ -77,24 +77,32 @@ cargo install --path zebes
 cargo install --path zebes-debugger
 ```
 
-> [!NOTE]
+> [!note]
 > `zebes` and `zebes-debugger` aren't published to crates.io yet, so `cargo install --path` (from a local clone) is currently the only way to install them. In the future I will also add a CI/CD pipeline to publish prebuilt binaries.
 
-## Modules
+## Controls
 
-### Core
+| Key     | Action             |
+| ------- | ------------------ |
+| `Z`     | A                  |
+| `X`     | B                  |
+| `Space` | Select             |
+| `Enter` | Start              |
+| `↑`     | Up                 |
+| `↓`     | Down               |
+| `←`     | Left               |
+| `→`     | Right              |
+| `F`     | Toggle FPS counter |
+| `R`     | Reset              |
 
-### Debugger
-
-### Frontend
-
-#### Controls
+> [!note]
+> In the future I am planning to add support for controllers as well as to make them customizable.
 
 ## Motivation
 
 I have always wanted to build an emulator. I don't know why, but it was one of those project ideas that's always somewhere in the back of your mind, and that you consider starting every once in a while. Eventually some circumstances aligned and gave me the excuse I needed to actually start, so here we are.
 
-Being honest, I've never played a real NES in my life. My first console was a PlayStation 1, on which I burned through some games like "Spyro", "Crash Bandicoot 3", and "Digimon Rumble Arena". Later I was gifted a Game Boy SP, which I still treasure and which became one of the most important parts of my early adolescence. Still, I've always been curious about the NES.
+Being honest, I've never played a real NES in my life. My first console was a PlayStation 1, on which I burned through games like "Spyro", "Crash Bandicoot 3", and "Digimon Rumble Arena". Later I was gifted a Game Boy SP, which I still treasure and which became one of the most important parts of my early adolescence. Still, I've always been curious about the NES.
 
 This project is also a stepping stone. Once I reach a certain state of completion, I plan to move on to a GBA emulator, or maybe a PlayStation 1 one. There's still a long way to go before that, though.
 
