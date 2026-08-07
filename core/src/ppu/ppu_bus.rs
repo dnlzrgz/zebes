@@ -34,7 +34,7 @@ impl PpuBus {
 
     pub fn read(&self, address: u16) -> u8 {
         match address & 0x3FFF {
-            0x0000..=0x1FFF => self.cartridge.borrow().ppu_read(address).unwrap_or(0),
+            0x0000..=0x1FFF => self.cartridge.borrow_mut().ppu_read(address).unwrap_or(0),
             0x2000..=0x3EFF => self.nametables[self.nametable_index(address)],
             0x3F00..=0x3FFF => self.palette[Self::palette_index(address)],
             _ => unreachable!("address & 0x3FFF is always in 0..=0x3FFF"),

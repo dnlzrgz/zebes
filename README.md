@@ -25,9 +25,10 @@ Zebes is a cross-platform NES emulator written from scratch in Rust for learning
   - [MMC1](https://www.nesdev.org/wiki/MMC1).
   - [UxROM](https://www.nesdev.org/wiki/UxROM).
   - [CNROM](https://www.nesdev.org/wiki/CNROM).
+  - [MMC3](https://www.nesdev.org/wiki/MMC3).
 
 > [!note]
-> There is no audio emulation yet (APU), and only the official 6502 instructions set is implemented at the moment. Also, more mappers like MMC3 and MMC5 are WIP.
+> There is no audio emulation yet (APU), and only the official 6502 instructions set is implemented at the moment. Also, more mappers like MMC5 are WIP.
 
 ## Build
 

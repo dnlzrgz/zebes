@@ -21,9 +21,10 @@ The emulator core for [Zebes](../README.md): CPU, PPU, cartridge/mapper handling
   - [MMC1](https://www.nesdev.org/wiki/MMC1).
   - [UxROM](https://www.nesdev.org/wiki/UxROM).
   - [CNROM](https://www.nesdev.org/wiki/CNROM).
+  - [MMC3](https://www.nesdev.org/wiki/MMC3).
 
 > [!NOTE]
-> There is no audio emulation yet (APU), and only the official 6502 instruction set is implemented at the moment. Also, more mappers like MMC3 and MMC5 are WIP.
+> There is no audio emulation yet (APU), and only the official 6502 instructions set is implemented at the moment. Also, more mappers like MMC5 are WIP.
 
 ## Usage
 

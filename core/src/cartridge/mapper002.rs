@@ -53,7 +53,7 @@ impl Mapper002 {
 }
 
 impl Mapper for Mapper002 {
-    fn cpu_read(&self, address: u16) -> Option<u8> {
+    fn cpu_read(&mut self, address: u16) -> Option<u8> {
         match address {
             0x8000..=0xFFFF => {
                 let idx = self.prg_offset(address);
@@ -69,7 +69,7 @@ impl Mapper for Mapper002 {
         }
     }
 
-    fn ppu_read(&self, address: u16) -> Option<u8> {
+    fn ppu_read(&mut self, address: u16) -> Option<u8> {
         match address {
             0x0000..=0x1FFF if !self.chr_rom.is_empty() => {
                 self.chr_rom.get(address as usize).copied()

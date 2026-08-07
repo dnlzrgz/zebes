@@ -3,6 +3,7 @@ mod mapper000;
 mod mapper001;
 mod mapper002;
 mod mapper003;
+mod mapper004;
 
 pub use mapper::{Mapper, Mirroring};
 use std::{cell::RefCell, rc::Rc};
@@ -81,13 +82,14 @@ impl Cartridge {
             1 => Box::new(mapper001::Mapper001::new(prg_rom, chr_rom, mirroring)),
             2 => Box::new(mapper002::Mapper002::new(prg_rom, chr_rom, mirroring)),
             3 => Box::new(mapper003::Mapper003::new(prg_rom, chr_rom, mirroring)),
+            4 => Box::new(mapper004::Mapper004::new(prg_rom, chr_rom, mirroring)),
             _ => return Err(format!("mapper {mapper_id} not supported yet")),
         };
 
         Ok(Self { mapper })
     }
 
-    pub fn cpu_read(&self, address: u16) -> Option<u8> {
+    pub fn cpu_read(&mut self, address: u16) -> Option<u8> {
         self.mapper.cpu_read(address)
     }
 
@@ -95,7 +97,7 @@ impl Cartridge {
         self.mapper.cpu_write(address, data);
     }
 
-    pub fn ppu_read(&self, address: u16) -> Option<u8> {
+    pub fn ppu_read(&mut self, address: u16) -> Option<u8> {
         self.mapper.ppu_read(address)
     }
 
