@@ -1,0 +1,83 @@
+name: Release
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build for"
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {
+              os: ubuntu-latest,
+              name: linux-x86_64,
+              target: x86_64-unknown-linux-gnu,
+              exe: "",
+              archive: tar.gz,
+            }
+          - {
+              os: macos-latest,
+              name: macos-aarch64,
+              target: aarch64-apple-darwin,
+              exe: "",
+              archive: tar.gz,
+            }
+          - {
+              os: windows-latest,
+              name: windows-x86_64,
+              target: x86_64-pc-windows-msvc,
+              exe: ".exe",
+              archive: zip,
+            }
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }} -p zebes -p zebes-debugger
+
+      - name: Package
+        shell: bash
+        run: |
+          dir="zebes-${TAG}-${{ matrix.name }}"
+          asset="$dir.${{ matrix.archive }}"
+          mkdir "$dir"
+          for bin in zebes zebes-debugger; do
+            cp "target/${{ matrix.target }}/release/${bin}${{ matrix.exe }}" "$dir/"
+          done
+          cp README.md LICENSE "$dir/"
+          if [ "${{ matrix.archive }}" = "zip" ]; then 7z a "$asset" "$dir"; else tar czf "$asset" "$dir"; fi
+          echo "ASSET=$asset" >> "$GITHUB_ENV"
+
+      - name: Upload to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$ASSET" --clobber
