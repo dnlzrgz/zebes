@@ -5,6 +5,9 @@ use zebes_core::controller::*;
 use zebes_core::nes::Nes;
 use zebes_core::ppu::{SCREEN_HEIGHT, SCREEN_WIDTH};
 
+// NTSC frame length: 341x262 dots at 5.369318 MHz. Odd frames are one dot shorter.
+const FRAME_TIME: Duration = Duration::from_nanos(16_639_264);
+
 fn window_conf() -> Conf {
     Conf {
         window_title: "Zebes".to_owned(),
@@ -44,7 +47,7 @@ fn get_controller_state() -> u8 {
     state
 }
 
-fn emulate_frames(nes: &mut Nes, image: &mut Image, controller_state: u8) {
+fn emulate_frame(nes: &mut Nes, image: &mut Image, controller_state: u8) {
     nes.set_controller_state(0, controller_state);
 
     let start_frame = nes.bus().ppu.frame();
@@ -74,36 +77,15 @@ pub async fn run(rom_path: &str) {
     let texture = Texture2D::from_image(&image);
     texture.set_filter(FilterMode::Nearest);
 
-    // NES NTSC frame rate (real is 60.0988138974405 Hz)
-    let target_frame_time = Duration::from_secs_f64(1.0 / 60.0988);
-    // Time after is assumed that the process was stalled and reset the accumulator.
-    let max_delta_time: Duration = Duration::from_millis(250);
-
-    // Fixed-step accumulator
-    let mut accumulator = Duration::ZERO;
-    let mut last_time = Instant::now();
+    let mut next_deadline = Instant::now();
 
     loop {
         if is_key_pressed(KeyCode::R) {
             nes.reset();
         }
 
-        let current_time = Instant::now();
-        let mut dt = current_time - last_time;
-        last_time = current_time;
-
-        if dt > max_delta_time {
-            dt = Duration::ZERO;
-            accumulator = Duration::ZERO;
-        }
-        accumulator += dt;
-
         let controller_state = get_controller_state();
-
-        while accumulator >= target_frame_time {
-            emulate_frames(&mut nes, &mut image, controller_state);
-            accumulator -= target_frame_time;
-        }
+        emulate_frame(&mut nes, &mut image, controller_state);
 
         texture.update(&image);
 
@@ -117,6 +99,13 @@ pub async fn run(rom_path: &str) {
                 ..Default::default()
             },
         );
+
+        next_deadline += FRAME_TIME;
+        let now = Instant::now();
+        match next_deadline.checked_duration_since(now) {
+            Some(remaining) => spin_sleep::sleep(remaining),
+            None => next_deadline = now,
+        }
 
         next_frame().await;
     }
