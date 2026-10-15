@@ -3,6 +3,8 @@ mod flags;
 mod palette;
 pub mod ppu_bus;
 mod sprites;
+#[cfg(test)]
+mod test_utils;
 
 use crate::bits::{contains, set};
 use crate::ppu::flags::*;
@@ -337,5 +339,496 @@ impl Ppu {
 
     pub fn oam(&self) -> &[u8; 256] {
         &self.oam
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn take_nmi_returns_and_clears_pending_request() {
+        let mut ppu = Ppu::new();
+        ppu.nmi_requested = true;
+
+        assert!(ppu.take_nmi());
+        assert!(!ppu.take_nmi()); // must return cleared flag
+    }
+
+    #[test]
+    fn cpu_read_ppustatus_clears_vblank_and_w_toggle() {
+        let mut ppu = Ppu::new();
+        ppu.status = STATUS_VBLANK | STATUS_SPRITE_OVERFLOW;
+        ppu.w = true;
+
+        let value = ppu.cpu_read(REG_PPUSTATUS);
+
+        assert_eq!(value, STATUS_VBLANK | STATUS_SPRITE_OVERFLOW);
+        assert!(!contains(ppu.status, STATUS_VBLANK));
+        assert!(contains(ppu.status, STATUS_SPRITE_OVERFLOW));
+        assert!(!ppu.w);
+    }
+
+    #[test]
+    fn cpu_read_mirrors_registers_every_eight_bytes() {
+        let mut ppu = Ppu::new();
+        ppu.status = STATUS_VBLANK;
+        ppu.w = true;
+
+        let value = ppu.cpu_read(0x3FFA); // 0x3FFA & 7 == 2 -> PPUSTATUS
+
+        assert_eq!(value, STATUS_VBLANK);
+        assert!(!contains(ppu.status, STATUS_VBLANK));
+        assert!(!ppu.w);
+    }
+
+    #[test]
+    fn cpu_read_oamdata_returns_current_oam_entry_without_incrementing() {
+        let mut ppu = Ppu::new();
+        ppu.oam_address = 7;
+        ppu.oam[7] = 0x5A;
+
+        assert_eq!(ppu.cpu_read(REG_OAMDATA), 0x5A);
+        assert_eq!(ppu.oam_address, 7);
+    }
+
+    #[test]
+    fn cpu_read_ppudata_buffers_and_increments_by_one() {
+        let mut ppu = Ppu::new();
+        ppu.ctrl = 0;
+        ppu.read_buffer = 0xAA;
+        ppu.v = 0x2000;
+        ppu.bus.write(0x2000, 0xBB);
+
+        let value = ppu.cpu_read(REG_PPUDATA);
+
+        assert_eq!(value, 0xAA); // Buffered value
+        assert_eq!(ppu.read_buffer, 0xBB); // Next byte
+        assert_eq!(ppu.v, 0x2001);
+    }
+
+    #[test]
+    fn cpu_read_ppudata_increments_by_32_when_ctrl_bit_set() {
+        let mut ppu = Ppu::new();
+        ppu.ctrl = CTRL_VRAM_INCREMENT;
+        ppu.v = 0x2000;
+
+        ppu.cpu_read(REG_PPUDATA);
+
+        assert_eq!(ppu.v, 0x2020);
+    }
+
+    #[test]
+    fn cpu_read_ppudata_palette_address_bypasses_buffer() {
+        let mut ppu = Ppu::new();
+        ppu.ctrl = 0;
+        ppu.v = 0x3F00;
+        ppu.bus.write(0x2F00, 0xAA);
+        ppu.bus.write(0x3F00, 0xCC);
+
+        let value = ppu.cpu_read(REG_PPUDATA);
+
+        assert_eq!(value, 0xCC);
+        assert_eq!(ppu.read_buffer, 0xAA);
+        assert_eq!(ppu.v, 0x3F01);
+    }
+
+    #[test]
+    fn cpu_read_ppudata_bypasses_buffer_across_palette_range() {
+        for v in [0x3F00u16, 0x3F01, 0x3F10, 0x3F11, 0x3F20, 0x3F1F] {
+            let mut ppu = Ppu::new();
+            ppu.ctrl = 0;
+            ppu.v = v;
+            ppu.bus.write(v - 0x1000, 0xAA);
+            ppu.bus.write(v, 0xCC);
+
+            let value = ppu.cpu_read(REG_PPUDATA);
+
+            assert_eq!(value, 0xCC, "v = ${v:04X}");
+            assert_eq!(ppu.read_buffer, 0xAA, "v = ${v:04X}");
+            assert_eq!(ppu.v, v + 1, "v = ${v:04X}");
+        }
+    }
+
+    #[test]
+    fn cpu_peek_ppustatus_does_not_clear_flags_or_w_toggle() {
+        let mut ppu = Ppu::new();
+        ppu.status = STATUS_VBLANK | STATUS_SPRITE_ZERO_HIT;
+        ppu.w = true;
+
+        let value = ppu.cpu_peek(REG_PPUSTATUS);
+
+        assert_eq!(value, STATUS_VBLANK | STATUS_SPRITE_ZERO_HIT);
+        assert!(contains(ppu.status, STATUS_VBLANK));
+        assert!(contains(ppu.status, STATUS_SPRITE_ZERO_HIT));
+        assert!(ppu.w);
+    }
+
+    #[test]
+    fn cpu_peek_oamdata_reads_current_oam_entry() {
+        let mut ppu = Ppu::new();
+        ppu.oam_address = 3;
+        ppu.oam[3] = 0x99;
+
+        assert_eq!(ppu.cpu_peek(REG_OAMDATA), 0x99);
+    }
+
+    #[test]
+    fn cpu_write_ppuctrl_updates_ctrl_and_t_nametable_bits() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0;
+
+        ppu.cpu_write(REG_PPUCTRL, 0b11);
+
+        assert_eq!(ppu.ctrl, 0b11);
+        assert_eq!(ppu.t & 0x0C00, 0x0C00);
+    }
+
+    #[test]
+    fn cpu_write_ppuctrl_masks_nametable_bits_and_preserves_other_t_bits() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0x7FFF; // nametable bits and unrelated scroll bits set
+
+        ppu.cpu_write(REG_PPUCTRL, 0x81); // only low 2 bits feed the nametable field
+
+        assert_eq!(ppu.ctrl, 0x81); // the full byte is still stored in ctrl
+        assert_eq!(ppu.t & 0x0C00, 0x0400); // 0b01 -> horizontal nametable bit
+        assert_eq!(ppu.t & !0x0C00, 0x73FF); // unrelated bits are keep
+    }
+
+    #[test]
+    fn cpu_write_oamdata_writes_and_increments_oam_address() {
+        let mut ppu = Ppu::new();
+        ppu.oam_address = 0x10;
+
+        ppu.cpu_write(REG_OAMDATA, 0xAB);
+
+        assert_eq!(ppu.oam[0x10], 0xAB);
+        assert_eq!(ppu.oam_address, 0x11);
+    }
+
+    #[test]
+    fn cpu_write_oamdata_wraps_oam_address() {
+        let mut ppu = Ppu::new();
+        ppu.oam_address = 0xFF;
+
+        ppu.cpu_write(REG_OAMDATA, 0xCD);
+
+        assert_eq!(ppu.oam[0xFF], 0xCD);
+        assert_eq!(ppu.oam_address, 0x00);
+    }
+
+    #[test]
+    fn cpu_write_ppuscroll_first_write_sets_fine_x_and_coarse_x() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0x7FE0;
+
+        ppu.cpu_write(REG_PPUSCROLL, 0b0010_1011);
+
+        assert_eq!(ppu.x, 0b011); // low 3 bits
+        assert_eq!(ppu.t, 0x7FE5); // high 5 bits become coarse X
+        assert!(ppu.w);
+    }
+
+    #[test]
+    fn cpu_write_ppuscroll_second_write_sets_fine_y_and_coarse_y() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0x041F;
+        ppu.w = true;
+
+        ppu.cpu_write(REG_PPUSCROLL, 0b0100_1000);
+
+        assert_eq!((ppu.t >> 12) & 0x07, 0b000); // fine Y = low 3 bits
+        assert_eq!((ppu.t & 0x03E0) >> 5, 0b01001); // coarse Y = high 5 bits
+        assert_eq!(ppu.t & 0x041F, 0x041F); // unrelated horizontal bits are keep
+        assert!(!ppu.w);
+    }
+
+    #[test]
+    fn cpu_write_ppuscroll_does_not_touch_v() {
+        let mut ppu = Ppu::new();
+        ppu.v = 0x1234;
+        ppu.t = 0;
+
+        ppu.cpu_write(REG_PPUSCROLL, 0xFF);
+        assert_eq!(ppu.v, 0x1234);
+
+        ppu.cpu_write(REG_PPUSCROLL, 0xFF);
+        assert_eq!(ppu.v, 0x1234);
+    }
+
+    #[test]
+    fn cpu_write_scroll_then_addr_uses_shared_w_latch() {
+        let mut ppu = Ppu::new();
+
+        ppu.cpu_write(REG_PPUSCROLL, 0xAB); // first scroll write -> w = true
+        ppu.cpu_write(REG_PPUADDR, 0x0F); // treated as the second PPUADDR write
+
+        assert_eq!(ppu.v, 0x000F);
+        assert!(!ppu.w);
+    }
+
+    #[test]
+    fn cpu_write_ppuaddr_first_write_sets_t_high_byte() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0x00FF;
+
+        ppu.cpu_write(REG_PPUADDR, 0x3F);
+
+        assert_eq!(ppu.t, 0x3FFF);
+        assert!(ppu.w);
+    }
+
+    #[test]
+    fn cpu_write_ppuaddr_first_write_masks_high_address_bits() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0x00FF;
+
+        ppu.cpu_write(REG_PPUADDR, 0xFF);
+
+        assert_eq!(ppu.t, 0x3FFF); // bits 6-7 are ignored
+        assert!(ppu.w);
+    }
+
+    #[test]
+    fn cpu_write_ppuaddr_second_write_sets_low_byte_and_copies_t_to_v() {
+        let mut ppu = Ppu::new();
+        ppu.t = 0x2000;
+        ppu.w = true;
+
+        ppu.cpu_write(REG_PPUADDR, 0x0F);
+
+        assert_eq!(ppu.t, 0x200F);
+        assert_eq!(ppu.v, 0x200F);
+        assert!(!ppu.w);
+    }
+
+    #[test]
+    fn cpu_write_ppudata_writes_and_increments_v_by_one() {
+        let mut ppu = Ppu::new();
+        ppu.ctrl = 0;
+        ppu.v = 0x2000;
+
+        ppu.cpu_write(REG_PPUDATA, 0xAB);
+
+        assert_eq!(ppu.bus.read(0x2000), 0xAB);
+        assert_eq!(ppu.v, 0x2001);
+    }
+
+    #[test]
+    fn cpu_write_ppudata_increments_v_by_32_when_ctrl_bit_set() {
+        let mut ppu = Ppu::new();
+        ppu.ctrl = CTRL_VRAM_INCREMENT;
+        ppu.v = 0x2000;
+
+        ppu.cpu_write(REG_PPUDATA, 0xAB);
+
+        assert_eq!(ppu.v, 0x2020);
+    }
+
+    #[test]
+    fn clock_sets_vblank_and_requests_nmi_when_enabled() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 241;
+        ppu.cycle = 1;
+        ppu.mask = 0; // keeps test focused on VBlank
+        ppu.ctrl = CTRL_NMI_ENABLE;
+
+        ppu.clock();
+
+        assert!(contains(ppu.status, STATUS_VBLANK));
+        assert!(ppu.take_nmi());
+    }
+
+    #[test]
+    fn clock_does_not_request_nmi_when_disabled() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 241;
+        ppu.cycle = 1;
+        ppu.mask = 0;
+        ppu.ctrl = 0;
+
+        ppu.clock();
+
+        assert!(contains(ppu.status, STATUS_VBLANK));
+        assert!(!ppu.take_nmi());
+    }
+
+    #[test]
+    fn clock_clears_status_flags_at_pre_render_start() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 261;
+        ppu.cycle = 1;
+        ppu.mask = 0;
+        ppu.status = STATUS_VBLANK | STATUS_SPRITE_ZERO_HIT | STATUS_SPRITE_OVERFLOW;
+
+        ppu.clock();
+
+        assert!(!contains(ppu.status, STATUS_VBLANK));
+        assert!(!contains(ppu.status, STATUS_SPRITE_ZERO_HIT));
+        assert!(!contains(ppu.status, STATUS_SPRITE_OVERFLOW));
+    }
+
+    #[test]
+    fn clock_skips_last_cycle_on_odd_frames_when_rendering() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 261;
+        ppu.cycle = 339;
+        ppu.frame = 1;
+        ppu.mask = MASK_SHOW_BACKGROUND; // rendering enabled
+
+        ppu.clock();
+
+        assert_eq!(ppu.cycle, 0);
+        assert_eq!(ppu.scanline, 0);
+        assert_eq!(ppu.frame, 2);
+    }
+
+    #[test]
+    fn clock_does_not_skip_last_cycle_on_even_frames() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 261;
+        ppu.cycle = 339;
+        ppu.frame = 0;
+        ppu.mask = MASK_SHOW_BACKGROUND;
+
+        ppu.clock();
+
+        assert_eq!(ppu.cycle, 340);
+        assert_eq!(ppu.scanline, 261);
+        assert_eq!(ppu.frame, 0);
+    }
+
+    #[test]
+    fn clock_advances_cycle_within_scanline() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 0;
+        ppu.cycle = 0;
+        ppu.mask = 0; // keeps test focused on cycle bookkeeping
+
+        ppu.clock();
+
+        assert_eq!(ppu.cycle, 1);
+        assert_eq!(ppu.scanline, 0);
+        assert_eq!(ppu.frame, 0);
+    }
+
+    #[test]
+    fn clock_wraps_cycle_to_next_scanline() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 0;
+        ppu.cycle = 340;
+        ppu.mask = 0;
+
+        ppu.clock();
+
+        assert_eq!(ppu.cycle, 0);
+        assert_eq!(ppu.scanline, 1);
+    }
+
+    #[test]
+    fn clock_wraps_scanline_and_increments_frame() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 261;
+        ppu.cycle = 340;
+        ppu.mask = 0;
+
+        ppu.clock();
+
+        assert_eq!(ppu.cycle, 0);
+        assert_eq!(ppu.scanline, 0);
+        assert_eq!(ppu.frame, 1);
+    }
+
+    #[test]
+    fn clock_increments_vertical_scroll_at_cycle_256() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 0;
+        ppu.cycle = 256;
+        ppu.mask = MASK_SHOW_BACKGROUND;
+        ppu.v = 0x0000; // fine Y = 0
+
+        ppu.clock();
+
+        assert_eq!((ppu.v >> 12) & 0x07, 1); // fine Y bumped
+    }
+
+    #[test]
+    fn clock_copies_horizontal_bits_at_cycle_257() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 0;
+        ppu.cycle = 257;
+        ppu.mask = MASK_SHOW_BACKGROUND;
+        ppu.v = 0x7BE0;
+        ppu.t = 0x041F;
+
+        ppu.clock();
+
+        assert_eq!(ppu.v, 0x7FFF);
+    }
+
+    #[test]
+    fn clock_copies_vertical_bits_on_pre_render_line() {
+        let mut ppu = Ppu::new();
+        ppu.scanline = 261;
+        ppu.cycle = 280;
+        ppu.mask = MASK_SHOW_BACKGROUND;
+        ppu.v = 0x041F;
+        ppu.t = 0x7BE0;
+
+        ppu.clock();
+
+        assert_eq!(ppu.v, 0x7FFF);
+    }
+
+    #[test]
+    fn clock_does_not_update_v_when_rendering_disabled() {
+        let cases = [
+            (0u16, 256u16, 0x0000u16, 0x7FFF), // bump fine Y
+            (0, 257, 0x0000, 0x041F),          // copy horizontal bits
+            (261, 280, 0x041F, 0x7BE0),        // copy vertical bits
+        ];
+
+        for (scanline, cycle, v, t) in cases {
+            let mut ppu = Ppu::new();
+            ppu.scanline = scanline;
+            ppu.cycle = cycle;
+            ppu.mask = 0; // rendering disabled
+            ppu.v = v;
+            ppu.t = t;
+
+            ppu.clock();
+
+            assert_eq!(ppu.v, v, "scanline {scanline} cycle {cycle}");
+        }
+    }
+
+    #[test]
+    fn frame_has_341_times_262_cycles_when_rendering_disabled() {
+        let mut ppu = Ppu::new();
+        ppu.mask = 0;
+
+        for _ in 0..(341 * 262) {
+            ppu.clock();
+        }
+
+        assert_eq!(ppu.frame, 1);
+        assert_eq!(ppu.scanline, 0);
+        assert_eq!(ppu.cycle, 0);
+    }
+
+    #[test]
+    fn odd_frame_skips_one_cycle_when_rendering_enabled() {
+        let mut ppu = Ppu::new();
+        ppu.mask = MASK_SHOW_BACKGROUND;
+        ppu.frame = 1; // odd frame skips cycle 339 on the pre-render line
+
+        for _ in 0..(341 * 262 - 1) {
+            ppu.clock();
+        }
+
+        assert_eq!(ppu.frame, 2);
+        assert_eq!(ppu.scanline, 0);
+        assert_eq!(ppu.cycle, 0);
     }
 }
